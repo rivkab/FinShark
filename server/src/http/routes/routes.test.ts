@@ -245,9 +245,31 @@ describe("full flow", () => {
   });
 });
 
+describe("people", () => {
+  it("adds more people at any time, with unique names", async () => {
+    await choosePerson(); // Dana
+    const second = await call("POST", "/api/people", { displayName: "Noa" });
+    expect(second.statusCode).toBe(201);
+    const dup = await call("POST", "/api/people", { displayName: "  dana " });
+    expect(dup.statusCode).toBe(409);
+    expect(dup.json().error).toBe("duplicate_name");
+    const list = (await call("GET", "/api/people")).json().people.map((p: { displayName: string }) => p.displayName);
+    expect(list).toEqual(["Dana", "Noa"]);
+    // The new person can be chosen as the one using FinShark.
+    expect((await call("POST", "/api/session/person", { personId: String(second.json().id) })).statusCode).toBe(200);
+  });
+});
+
 describe("account numbers", () => {
+  beforeEach(() => {
+    chosen = false;
+  });
+  let chosen = false;
   async function account(body: Record<string, unknown> = {}) {
-    await choosePerson();
+    if (!chosen) {
+      await choosePerson();
+      chosen = true;
+    }
     const inst = (await call("POST", "/api/institutions", { name: "Example Bank", country: "US" })).json();
     return call("POST", "/api/accounts", { institutionId: inst.id, displayName: "Checking", nativeCurrency: "USD", ...body });
   }

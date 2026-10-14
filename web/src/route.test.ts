@@ -18,6 +18,7 @@ describe("parseHash", () => {
     expect(parseHash("#/facts?status=proposed&account=3&junk=1")).toEqual({ page: "facts", filters: { status: "proposed", account: "3" } });
     expect(parseHash("#/facts/9")).toEqual({ page: "fact", id: 9 });
     expect(parseHash("#/accounts")).toEqual({ page: "accounts" });
+    expect(parseHash("#/people")).toEqual({ page: "people" });
     expect(parseHash("#/demo")).toEqual({ page: "demo" });
   });
   it("round-trips the href builders", () => {

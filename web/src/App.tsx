@@ -2,11 +2,12 @@ import { useEffect, useState } from "react";
 import type { PersonDto } from "@finshark/shared";
 import { AccountsPage } from "./AccountsPage.tsx";
 import { apiFetch, errorText, fetchSession, setActingPerson } from "./api.ts";
-import { ActorProvider, RefDataProvider } from "./context.tsx";
+import { ActorProvider, RefDataProvider, useRefData } from "./context.tsx";
 import { DemoPage } from "./DemoPage.tsx";
 import { DocumentsPage } from "./DocumentsPage.tsx";
 import { DocumentView } from "./DocumentView.tsx";
 import { FactHistory, FactsPage } from "./FactsPage.tsx";
+import { AddPersonForm, PeoplePage } from "./PeoplePage.tsx";
 import { ReviewPage } from "./ReviewPage.tsx";
 import { parseHash, type Route } from "./route.ts";
 import { ErrorNote } from "./ui.tsx";
@@ -17,6 +18,7 @@ const NAV = [
   { label: "Review", href: "#/review", pages: ["review"] },
   { label: "Facts", href: "#/facts", pages: ["facts", "fact"] },
   { label: "Accounts", href: "#/accounts", pages: ["accounts"] },
+  { label: "People", href: "#/people", pages: ["people"] },
 ] as const;
 
 function useRoute(): Route {
@@ -36,6 +38,10 @@ export function App() {
   const [personId, setPersonId] = useState<string | null | undefined>(undefined); // undefined = loading
   const [people, setPeople] = useState<PersonDto[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const reloadPeople = async () => {
+    setPeople((await apiFetch<{ people: PersonDto[] }>("/api/people")).people);
+  };
 
   useEffect(() => {
     fetchSession().then(
@@ -71,6 +77,12 @@ export function App() {
             </button>
           ))}
         </div>
+        <h2>Someone else?</h2>
+        <AddPersonForm label="Add and continue" onAdded={async (p) => {
+          await reloadPeople();
+          await setActingPerson(String(p.id));
+          setPersonId(String(p.id));
+        }} />
       </main>
     );
   }
@@ -78,7 +90,7 @@ export function App() {
   return (
     <ActorProvider personId={personId} setPersonId={setPersonId} people={people}>
       <RefDataProvider>
-        <Shell people={people} personId={personId} onSwitch={() => setPersonId(null)} />
+        <Shell people={people} personId={personId} onSwitch={() => setPersonId(null)} onPeopleChanged={reloadPeople} />
       </RefDataProvider>
     </ActorProvider>
   );
@@ -120,7 +132,18 @@ function SetupPeople({ onDone }: { onDone: (p: PersonDto[]) => void }) {
   );
 }
 
-function Shell({ people, personId, onSwitch }: { people: PersonDto[]; personId: string; onSwitch: () => void }) {
+function Shell({
+  people,
+  personId,
+  onSwitch,
+  onPeopleChanged,
+}: {
+  people: PersonDto[];
+  personId: string;
+  onSwitch: () => void;
+  onPeopleChanged: () => Promise<void>;
+}) {
+  const { reload } = useRefData();
   const route = useRoute();
   const person = people.find((p) => String(p.id) === personId);
   return (
@@ -139,7 +162,11 @@ function Shell({ people, personId, onSwitch }: { people: PersonDto[]; personId: 
         </span>
       </header>
       <main>
-        <Page route={route} />
+        {route.page === "people" ? (
+          <PeoplePage people={people} personId={personId} onAdded={async () => { await onPeopleChanged(); await reload(); }} />
+        ) : (
+          <Page route={route} />
+        )}
       </main>
       <footer><a href="#/demo">Viewer demo</a></footer>
     </div>
@@ -154,6 +181,7 @@ function Page({ route }: { route: Route }) {
     case "facts": return <FactsPage filters={route.filters} />;
     case "fact": return <FactHistory id={route.id} />;
     case "accounts": return <AccountsPage />;
+    case "people": return null; // rendered by Shell, which owns the people list
     case "demo": return <DemoPage />;
   }
 }

@@ -19,7 +19,7 @@ import {
   setAccountNumber,
 } from "../../db/repo.ts";
 import { isIsoDate } from "../../facts/validate.ts";
-import { badRequest, idParam, jsonBody, notFound, optEnum, optStr, reqInt, reqStr, type ApiContext, type Json } from "./common.ts";
+import { HttpError, badRequest, idParam, jsonBody, notFound, optEnum, optStr, reqInt, reqStr, type ApiContext, type Json } from "./common.ts";
 
 type Row = Record<string, unknown>;
 
@@ -99,6 +99,11 @@ export function registerReferenceRoutes(app: FastifyInstance, ctx: ApiContext): 
   app.post("/api/people", async (req, reply) => {
     const name = reqStr(jsonBody(req), "displayName").trim();
     if (name.length > 200) throw badRequest("displayName is too long.");
+    // Names are how people are told apart in history and attributions, so they must be unique.
+    const taken = (db.prepare("SELECT display_name FROM people").all() as Row[]).some(
+      (r) => String(r["display_name"]).toLocaleLowerCase() === name.toLocaleLowerCase(),
+    );
+    if (taken) throw new HttpError(409, "duplicate_name", `There is already someone called ${name}.`);
     const id = insertPerson(db, ctx.now, { displayName: name });
     return reply.code(201).send({ id, displayName: name } satisfies PersonDto);
   });
