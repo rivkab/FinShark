@@ -1,4 +1,5 @@
 // Same-origin API client. Mutations attach the per-session CSRF token (DESIGN §9).
+import type { ApiErrorBody, ConflictDetails, FactDto, UploadResponse } from "@finshark/shared";
 
 export interface SessionInfo {
   csrfToken: string;
@@ -9,10 +10,25 @@ let csrfToken: string | null = null;
 
 export class ApiError extends Error {
   readonly status: number;
-  constructor(status: number, message: string) {
+  /** The server's error code ("choose_person", "conflict", ...), when the body had one. */
+  readonly code: string | null;
+  readonly details: unknown;
+  constructor(status: number, message: string, code: string | null = null, details?: unknown) {
     super(message);
     this.status = status;
+    this.code = code;
+    this.details = details;
   }
+  /** Verified facts that block verification (409 conflict), else null. */
+  get conflicts(): FactDto[] | null {
+    if (this.code !== "conflict") return null;
+    const d = this.details as Partial<ConflictDetails> | undefined;
+    return Array.isArray(d?.conflicts) ? d.conflicts : null;
+  }
+}
+
+export function errorText(e: unknown): string {
+  return e instanceof Error ? e.message : String(e);
 }
 
 export async function fetchSession(): Promise<SessionInfo> {
@@ -24,6 +40,17 @@ export async function fetchSession(): Promise<SessionInfo> {
 }
 
 const MUTATING = new Set(["POST", "PUT", "PATCH", "DELETE"]);
+
+async function toError(res: Response, method: string, path: string): Promise<ApiError> {
+  let body: Partial<ApiErrorBody> | null = null;
+  try {
+    body = (await res.json()) as Partial<ApiErrorBody>;
+  } catch {
+    // not JSON
+  }
+  const message = body?.message ?? `${method} ${path} failed (${res.status})`;
+  return new ApiError(res.status, message, typeof body?.error === "string" ? body.error : null, body?.details);
+}
 
 /** fetch() for our own API: JSON in/out, CSRF header on mutations. */
 export async function apiFetch<T = unknown>(path: string, init: { method?: string; body?: unknown } = {}): Promise<T> {
@@ -41,8 +68,27 @@ export async function apiFetch<T = unknown>(path: string, init: { method?: strin
     credentials: "same-origin",
     ...(hasBody ? { body: JSON.stringify(init.body) } : {}),
   });
-  if (!res.ok) throw new ApiError(res.status, `${method} ${path} failed (${res.status})`);
+  if (!res.ok) throw await toError(res, method, path);
   return (res.status === 204 ? undefined : await res.json()) as T;
+}
+
+/** Upload one PDF as the raw request body. */
+export async function uploadPdf(file: File): Promise<UploadResponse> {
+  if (!csrfToken) await fetchSession();
+  const path = "/api/documents";
+  const res = await fetch(path, {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/pdf",
+      "X-Filename": encodeURIComponent(file.name),
+      "X-FinShark-CSRF": csrfToken!,
+    },
+    credentials: "same-origin",
+    body: file,
+  });
+  if (!res.ok) throw await toError(res, "POST", path);
+  return (await res.json()) as UploadResponse;
 }
 
 export function setActingPerson(personId: string): Promise<{ personId: string }> {
