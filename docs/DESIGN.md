@@ -206,6 +206,7 @@ document_pages      document_id, page_no, width_pt, height_pt, rotation,
 concepts   id (stable slug), label_en, label_he, description,
            period_type   (instant | duration | none),
            value_type    (money | decimal | integer | text | date | boolean),
+           subject       (account | person) -- what a fact must be attached to (D8),
            generic_concept_id (nullable — 'us.1099int.box1' → 'interest_income'),
            jurisdiction  (nullable),
            authority_rank (for picking among sources of the same generic concept),
@@ -240,8 +241,8 @@ the user can extend.
 facts
   id
   concept_id
-  account_id         (nullable — some facts are about a person, e.g. W-2 wages)
-  person_id          (nullable)
+  account_id         (required when concept.subject = 'account'; see D8)
+  person_id          (required when concept.subject = 'person', e.g. W-2 wages)
   value_minor        INTEGER  -- money, in minor units (cents / agorot)
   value_decimal      TEXT     -- exact decimal string for shares, prices, rates
   value_text         TEXT
@@ -944,3 +945,13 @@ Supersedes parts of §7 and §10.
 - "Query IR" is renamed **query definition** in code and from here on.
 - Initial schema: `server/src/db/migrations/001_initial.sql`. Vault layout:
   `server/src/vault/layout.ts`.
+
+### D8. A fact must carry the subject its concept requires (2026-10-14)
+
+An ending balance with no account is not a fact, it's a loose number. Each concept
+declares a `subject`: `account` (balances, interest, status attestations, 1099-INT,
+Form 867, pension savings) or `person` (W-2 wages, federal withholding). Creating or
+correcting a fact is refused (`subject_required`) unless the matching `account_id` or
+`person_id` is present. Enforced in `prepareFact`, not by a table CHECK, because
+facts are append-only and rows written before migration 003 may lack it; those stay
+readable. New concepts default to `account`.

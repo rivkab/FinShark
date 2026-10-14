@@ -21,6 +21,7 @@ const concept = (id: string, periodType: ConceptDto["periodType"], valueType: Co
   description: null,
   periodType,
   valueType,
+  subject: "account",
   genericConceptId: null,
   jurisdiction: null,
   authorityRank: 0,
@@ -49,12 +50,18 @@ describe("applyConceptChange", () => {
 });
 
 describe("validateFactForm", () => {
-  const ok = { ...emptyFactForm(), conceptId: "balance.ending", value: "$83,421.17", currency: "USD", instantDate: "2025-06-30" };
+  const ok = { ...emptyFactForm(), conceptId: "balance.ending", value: "$83,421.17", currency: "USD", instantDate: "2025-06-30", accountId: "4" };
   it("accepts a good money form", () => expect(validateFactForm(ok, BAL)).toEqual([]));
   it("requires concept, value, dates", () => {
     expect(validateFactForm(emptyFactForm(), undefined)).toEqual(["Choose what kind of number this is.", "Enter the value."]);
     expect(validateFactForm({ ...ok, instantDate: "" }, BAL)).toEqual(["Date must be a date."]);
     expect(validateFactForm({ ...ok, periodStart: "2025-06-30", periodEnd: "2025-01-01" }, INT)).toEqual(["The end date is before the start date."]);
+  });
+  it("requires an account for account concepts and a person for person concepts", () => {
+    expect(validateFactForm({ ...ok, accountId: "" }, BAL)).toEqual(["Choose the account this number belongs to."]);
+    const WAGES: ConceptDto = { ...INT, id: "income.wages", subject: "person" };
+    expect(validateFactForm({ ...ok, accountId: "", periodStart: "2025-01-01", periodEnd: "2025-12-31" }, WAGES)).toEqual(["Choose the person this number belongs to."]);
+    expect(validateFactForm({ ...ok, accountId: "", personId: "2", periodStart: "2025-01-01", periodEnd: "2025-12-31" }, WAGES)).toEqual([]);
   });
   it("checks money against the currency, as text", () => {
     expect(validateFactForm({ ...ok, value: "12abc" }, BAL)).toHaveLength(1);
@@ -95,7 +102,7 @@ describe("request builders", () => {
   it("corrects with explicit null account and the verify flag", () => {
     const form = { ...emptyFactForm(), conceptId: BAL.id, value: "100.00", currency: "USD", instantDate: "2025-06-30" };
     expect(buildCorrectRequest(form, BAL, true)).toEqual({
-      conceptId: "balance.ending", value: "100.00", currency: "USD", instantDate: "2025-06-30", accountId: null, note: "", verify: true,
+      conceptId: "balance.ending", value: "100.00", currency: "USD", instantDate: "2025-06-30", accountId: null, personId: null, note: "", verify: true,
     });
     expect(buildCorrectRequest({ ...form, accountId: "9" }, BAL, false)).toMatchObject({ accountId: 9, verify: false });
   });
@@ -129,7 +136,7 @@ describe("currency and existing facts", () => {
     expect(valueForForm({ valueMinor: null, currency: null, formatted: "true" })).toBe("true");
   });
   it("builds a form from a fact", () => {
-    expect(formFromFact(fact)).toEqual({ conceptId: "balance.ending", accountId: "2", value: "-42318.55", currency: "ILS", instantDate: "2025-06-30", periodStart: "", periodEnd: "", note: "" });
+    expect(formFromFact({ ...fact, personId: null })).toEqual({ conceptId: "balance.ending", accountId: "2", personId: "", value: "-42318.55", currency: "ILS", instantDate: "2025-06-30", periodStart: "", periodEnd: "", note: "" });
   });
 });
 

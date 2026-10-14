@@ -8,12 +8,14 @@ export interface ConceptRow {
   labelHe: string | null;
   periodType: PeriodType;
   valueType: ValueType;
+  /** What facts of this concept are about; the matching reference is then mandatory. */
+  subject: "account" | "person";
   deprecatedBy: string | null;
 }
 
 export function getConcept(db: DatabaseSync, id: string): ConceptRow | undefined {
   const r = db
-    .prepare("SELECT id, label_en, label_he, period_type, value_type, deprecated_by FROM concepts WHERE id = ?")
+    .prepare("SELECT id, label_en, label_he, period_type, value_type, subject, deprecated_by FROM concepts WHERE id = ?")
     .get(id) as
     | {
         id: string;
@@ -21,6 +23,7 @@ export function getConcept(db: DatabaseSync, id: string): ConceptRow | undefined
         label_he: string | null;
         period_type: PeriodType;
         value_type: ValueType;
+        subject: "account" | "person";
         deprecated_by: string | null;
       }
     | undefined;
@@ -30,6 +33,7 @@ export function getConcept(db: DatabaseSync, id: string): ConceptRow | undefined
     labelHe: r.label_he,
     periodType: r.period_type,
     valueType: r.value_type,
+    subject: r.subject,
     deprecatedBy: r.deprecated_by,
   };
 }
@@ -192,10 +196,19 @@ export function prepareFact(db: DatabaseSync, f: FactFields): PreparedFact {
   }
 
   const dimensions = checkDimensions(f.dimensions);
+  const accountId = checkRef(db, "accounts", f.accountId, "accountId");
+  const personId = checkRef(db, "people", f.personId, "personId");
+  // A number is only meaningful with what it is about: an ending balance needs its account.
+  if (concept.subject === "account" && accountId === null) {
+    throw new FactError("subject_required", `${concept.labelEn} must be attached to an account.`, { field: "accountId", conceptId: concept.id });
+  }
+  if (concept.subject === "person" && personId === null) {
+    throw new FactError("subject_required", `${concept.labelEn} must be attached to a person.`, { field: "personId", conceptId: concept.id });
+  }
   return {
     concept,
-    accountId: checkRef(db, "accounts", f.accountId, "accountId"),
-    personId: checkRef(db, "people", f.personId, "personId"),
+    accountId,
+    personId,
     valueMinor,
     valueDecimal,
     valueText,

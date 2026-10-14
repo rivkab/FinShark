@@ -17,6 +17,8 @@ export interface FactFormState {
   conceptId: string;
   /** "" = none. */
   accountId: string;
+  /** "" = none. Only used by concepts whose subject is a person. */
+  personId: string;
   value: string;
   currency: string;
   instantDate: string;
@@ -26,7 +28,7 @@ export interface FactFormState {
 }
 
 export function emptyFactForm(): FactFormState {
-  return { conceptId: "", accountId: "", value: "", currency: "", instantDate: "", periodStart: "", periodEnd: "", note: "" };
+  return { conceptId: "", accountId: "", personId: "", value: "", currency: "", instantDate: "", periodStart: "", periodEnd: "", note: "" };
 }
 
 export function isMoney(c: Pick<ConceptDto, "valueType"> | undefined): boolean {
@@ -67,6 +69,7 @@ export function formFromFact(f: FactDto): FactFormState {
   return {
     conceptId: f.conceptId,
     accountId: f.accountId === null ? "" : String(f.accountId),
+    personId: f.personId === null ? "" : String(f.personId),
     value: valueForForm(f),
     currency: f.currency ?? "",
     instantDate: f.instantDate ?? "",
@@ -79,6 +82,8 @@ export function formFromFact(f: FactDto): FactFormState {
 export function validateFactForm(form: FactFormState, concept: ConceptDto | undefined): string[] {
   const errors: string[] = [];
   if (!concept) errors.push("Choose what kind of number this is.");
+  if (concept?.subject === "account" && form.accountId === "") errors.push("Choose the account this number belongs to.");
+  if (concept?.subject === "person" && form.personId === "") errors.push("Choose the person this number belongs to.");
   if (form.value.trim() === "") errors.push("Enter the value.");
   if (concept && isMoney(concept)) {
     if (form.currency === "") errors.push("Choose a currency.");
@@ -130,6 +135,7 @@ export function buildProposeRequest(
     value: form.value.trim(),
     ...conceptFields(form, concept),
     ...(form.accountId !== "" ? { accountId: Number(form.accountId) } : {}),
+    ...(form.personId !== "" ? { personId: Number(form.personId) } : {}),
     ...(note !== "" ? { note } : {}),
   };
 }
@@ -140,6 +146,7 @@ export function buildCorrectRequest(form: FactFormState, concept: ConceptDto, ve
     value: form.value.trim(),
     ...conceptFields(form, concept),
     accountId: form.accountId === "" ? null : Number(form.accountId),
+    personId: form.personId === "" ? null : Number(form.personId),
     note: form.note.trim(),
     verify,
   };

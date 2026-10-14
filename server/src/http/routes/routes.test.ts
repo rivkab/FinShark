@@ -229,12 +229,15 @@ describe("full flow", () => {
   it("maps domain refusals to 400/404 with structured errors", async () => {
     await choosePerson();
     const documentId = (await upload(sampleStatementPdf())).json().documentId as number;
-    const base = { documentId, pageNo: 1, bbox: [395, 595, 480, 615], conceptId: "balance.ending", value: "$1.00", currency: "USD", instantDate: "2025-12-31" };
+    const inst = (await call("POST", "/api/institutions", { name: "Example Brokerage", country: "US" })).json();
+    const accountId = (await call("POST", "/api/accounts", { institutionId: inst.id, displayName: "Brokerage 4821", nativeCurrency: "USD" })).json().id as number;
+    const base = { documentId, pageNo: 1, bbox: [395, 595, 480, 615], conceptId: "balance.ending", accountId, value: "$1.00", currency: "USD", instantDate: "2025-12-31" };
     const bad = async (over: Record<string, unknown>, status: number, error: string) => {
       const r = await call("POST", "/api/facts", { ...base, ...over });
       expect([r.statusCode, r.json().error], JSON.stringify(over)).toEqual([status, error]);
       expect(typeof r.json().message).toBe("string");
     };
+    await bad({ accountId: undefined }, 400, "subject_required");
     await bad({ instantDate: undefined }, 400, "bad_period");
     await bad({ currency: undefined }, 400, "bad_value");
     await bad({ value: "1.234,56" }, 400, "bad_value");
@@ -363,7 +366,9 @@ describe("uploads", () => {
   it("serves a document with no text layer and lets a typed value be proposed", async () => {
     await choosePerson();
     const documentId = (await upload(makePdf([{ texts: [] }]), "scan.pdf")).json().documentId as number;
-    const r = await call("POST", "/api/facts", { documentId, pageNo: 1, bbox: [100, 100, 200, 120], conceptId: "balance.ending", value: "5", currency: "USD", instantDate: "2025-12-31" });
+    const inst = (await call("POST", "/api/institutions", { name: "Example Brokerage", country: "US" })).json();
+    const accountId = (await call("POST", "/api/accounts", { institutionId: inst.id, displayName: "Brokerage 4821", nativeCurrency: "USD" })).json().id as number;
+    const r = await call("POST", "/api/facts", { documentId, pageNo: 1, bbox: [100, 100, 200, 120], conceptId: "balance.ending", accountId, value: "5", currency: "USD", instantDate: "2025-12-31" });
     expect(r.statusCode).toBe(201);
     expect(r.json()).toMatchObject({ valueMatchesSource: null, fact: { sources: [{ quotedText: null }] } });
   });

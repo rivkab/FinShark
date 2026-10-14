@@ -1,6 +1,7 @@
 import type { AccountDto, ConceptDto } from "@finshark/shared";
 import type { PeriodSource } from "./dates.ts";
 import { applyConceptChange, isMoney, type FactFormState } from "./factForm.ts";
+import { useRefData } from "./context.tsx";
 import { AccountSelect, ConceptPicker } from "./ui.tsx";
 
 /** The fields of "Add a number" / "Correct". Controlled; the parent owns the buttons and the submit. */
@@ -21,6 +22,7 @@ export function FactFormFields({
   period: PeriodSource;
   valueHint?: string;
 }) {
+  const { people } = useRefData();
   const concept = concepts.find((c) => c.id === form.conceptId);
   const set = (patch: Partial<FactFormState>) => onChange({ ...form, ...patch });
 
@@ -36,10 +38,23 @@ export function FactFormFields({
         <span>Kind of number</span>
         <ConceptPicker concepts={concepts} value={form.conceptId} onChange={onConcept} />
       </label>
-      <label>
-        <span>Account</span>
-        <AccountSelect accounts={accounts} institutionId={institutionId} value={form.accountId} onChange={onAccount} noneLabel="No account (a person or household figure)" />
-      </label>
+      {concept?.subject !== "person" && (
+        <label>
+          <span>Account</span>
+          <AccountSelect accounts={accounts} institutionId={institutionId} value={form.accountId} onChange={onAccount} noneLabel="Choose an account..." />
+        </label>
+      )}
+      {concept?.subject === "person" && (
+        <label>
+          <span>Person</span>
+          <select value={form.personId} onChange={(e) => set({ personId: e.target.value })}>
+            <option value="">Choose a person...</option>
+            {people.map((p) => (
+              <option key={p.id} value={p.id}>{p.displayName}</option>
+            ))}
+          </select>
+        </label>
+      )}
       <div className="row">
         <label className="grow">
           <span>Value</span>

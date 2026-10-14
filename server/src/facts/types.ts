@@ -16,6 +16,7 @@ export type FactErrorCode =
   | "bad_period"
   | "bad_value"
   | "bad_bbox"
+  | "subject_required"
   | "note_required"
   | "deprecated_concept"
   | "bad_state";

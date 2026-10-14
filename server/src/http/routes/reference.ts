@@ -190,6 +190,7 @@ export function registerReferenceRoutes(app: FastifyInstance, ctx: ApiContext): 
         description: (r["description"] as string | null) ?? null,
         periodType: r["period_type"] as ConceptDto["periodType"],
         valueType: r["value_type"] as ConceptDto["valueType"],
+        subject: r["subject"] as ConceptDto["subject"],
         genericConceptId: (r["generic_concept_id"] as string | null) ?? null,
         jurisdiction: (r["jurisdiction"] as string | null) ?? null,
         authorityRank: Number(r["authority_rank"]),

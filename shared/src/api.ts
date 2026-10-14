@@ -152,6 +152,8 @@ export interface ConceptDto {
   description: string | null;
   periodType: PeriodType;
   valueType: ValueType;
+  /** What a fact of this concept must be attached to. */
+  subject: "account" | "person";
   genericConceptId: string | null;
   jurisdiction: string | null;
   authorityRank: number;

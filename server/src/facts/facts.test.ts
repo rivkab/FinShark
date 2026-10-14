@@ -1,3 +1,4 @@
+import { insertAccount } from "../db/repo.ts";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { makePdf, sampleStatementPdf } from "../testing/pdf-fixture.ts";
 import { makeRealVault, seedBasics, type RealTestVault } from "../testing/test-vault.ts";
@@ -19,6 +20,7 @@ import {
 let v: RealTestVault;
 let actor: number;
 let accountId: number;
+let otherAccountId: number;
 let documentId: number;
 let deps: { db: RealTestVault["vault"]["db"]; layout: RealTestVault["vault"]["layout"]; now: () => Date };
 
@@ -31,6 +33,7 @@ beforeEach(async () => {
   const b = seedBasics(v);
   actor = b.personId;
   accountId = b.accountId;
+  otherAccountId = insertAccount(v.vault.db, v.now, { institutionId: b.institutionId, displayName: "Savings ...9911", nativeCurrency: "USD" });
   documentId = (await v.importPdf(sampleStatementPdf())).documentId;
   deps = { db: v.vault.db, layout: v.vault.layout, now: v.now };
 });
@@ -188,6 +191,18 @@ describe("proposeManualFact", () => {
     expect(view.sources[0]!.bbox).toEqual(BALANCE_BOX);
   });
 
+  it("refuses an account concept without an account, and a person concept without a person", async () => {
+    await expectRefusal(proposeManualFact(deps, actor, balance({ accountId: undefined })), "subject_required", /attached to an account/);
+    await expectRefusal(proposeManualFact(deps, actor, balance({ accountId: null })), "subject_required");
+    const wages = { conceptId: "income.wages", instantDate: undefined, currency: "USD", periodStart: "2025-01-01", periodEnd: "2025-12-31", accountId: undefined };
+    await expectRefusal(proposeManualFact(deps, actor, balance(wages)), "subject_required", /attached to a person/);
+    expect((await proposeManualFact(deps, actor, balance({ ...wages, personId: actor }))).fact.personId).toBe(actor);
+    // Correcting cannot remove the account either.
+    const a = await proposeManualFact(deps, actor, balance());
+    expect(() => correctFact(deps, actor, a.fact.id, { accountId: null })).toThrow(/attached to an account/);
+    expect(count("facts")).toBe(2);
+  });
+
   it("refuses unknown or deprecated concepts and names the replacement", async () => {
     v.vault.db.exec(
       "INSERT INTO concepts (id, label_en, period_type, value_type, deprecated_by) VALUES ('old.balance', 'Old', 'instant', 'money', 'balance.ending')",
@@ -253,7 +268,7 @@ describe("verifyFact", () => {
 
     for (const other of [
       balance({ value: "$1.00", instantDate: "2024-12-31" }),
-      balance({ value: "$1.00", accountId: undefined }),
+      balance({ value: "$1.00", accountId: otherAccountId }),
       balance({ value: "$1.00", dimensions: { copy: "B" } }),
       balance({ value: "$1.00", personId: actor }),
     ]) {
@@ -326,9 +341,9 @@ describe("correctFact", () => {
 
   it("can change period, concept, account and dimensions; and refuses invalid results", async () => {
     const a = await proposeManualFact(deps, actor, balance());
-    const r = correctFact(deps, actor, a.fact.id, { instantDate: "2025-11-30", dimensions: { copy: "B" }, accountId: null });
+    const r = correctFact(deps, actor, a.fact.id, { instantDate: "2025-11-30", dimensions: { copy: "B" }, accountId: otherAccountId });
     if (!r.ok) throw new Error("conflict");
-    expect(r.view.fact).toMatchObject({ instantDate: "2025-11-30", dimensions: { copy: "B" }, accountId: null });
+    expect(r.view.fact).toMatchObject({ instantDate: "2025-11-30", dimensions: { copy: "B" }, accountId: otherAccountId });
 
     const toDuration = correctFact(deps, actor, r.view.fact.id, { conceptId: "income.interest", periodStart: "2025-01-01", periodEnd: "2025-12-31" });
     if (!toDuration.ok) throw new Error("conflict");
@@ -464,13 +479,14 @@ describe("queries", () => {
 
   it("filters facts by status, concept, account and document", async () => {
     const a = await proposeManualFact(deps, actor, balance());
-    await proposeManualFact(deps, actor, balance({ conceptId: "income.interest", instantDate: undefined, periodStart: "2025-01-01", periodEnd: "2025-12-31", accountId: undefined }));
+    await proposeManualFact(deps, actor, balance({ conceptId: "income.interest", instantDate: undefined, periodStart: "2025-01-01", periodEnd: "2025-12-31", accountId: otherAccountId }));
     verifyFact(deps, actor, a.fact.id);
     const ids = (f: Parameters<typeof listFacts>[1]) => listFacts(v.vault.db, f).map((x) => x.fact.id);
     expect(ids({})).toHaveLength(2);
     expect(ids({ status: "verified" })).toEqual([a.fact.id]);
     expect(ids({ conceptId: "income.interest" })).toHaveLength(1);
     expect(ids({ accountId })).toEqual([a.fact.id]);
+    expect(ids({ accountId: otherAccountId })).toHaveLength(1);
     expect(ids({ documentId })).toHaveLength(2);
     expect(ids({ documentId: 99 })).toEqual([]);
   });
