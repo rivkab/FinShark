@@ -1,7 +1,8 @@
-// Text under a user-drawn box. Pure; no DOM, no pdf.js.
-// A server-side version is being written separately and will be unified later.
+// The text under a user-drawn box. Pure and dependency-free: the web UI uses it to
+// show what a box covers, the server uses it to recompute `quoted_text` (never trust
+// client text). Coordinates are unrotated PDF points, origin bottom-left.
 
-import { normalizeRect, type PdfRect } from "@finshark/shared";
+import { normalizeRect, type PdfRect } from "./pdf-geometry.ts";
 
 /** One text-layer item with its bounding box in unrotated PDF points. */
 export interface TextBox {
@@ -51,17 +52,21 @@ export function overlapFraction(inner: PdfRect, outer: PdfRect): number {
   return (iw * ih) / (w * h);
 }
 
-const CURRENCY = /^[$€£₪¥]$/;
+/** A piece of a number: a lone currency sign, or digits/separators with optional sign, parens or percent. */
+const NUMERIC_PIECE = /^(?:[$€£₪¥]|[$€£₪¥(+\-−]?[\d.,]+[%)]?)$/u;
 
-/** Pieces of one number split by the PDF (e.g. "83", ",421", ".17") are joined without spaces. */
-function joinsWithoutSpace(prev: string, next: string): boolean {
-  if (CURRENCY.test(prev.trim())) return /^[\d(.,-]/.test(next);
-  return /[\d,.]$/.test(prev) && /^[\d,.%)]/.test(next);
-}
+/** Pieces closer than this fraction of the line height count as touching. */
+const JOIN_GAP = 0.35;
+
+const isNumericPiece = (s: string): boolean => NUMERIC_PIECE.test(s);
 
 /**
- * Text of all items at least 50% inside `box`, ordered top-to-bottom then left-to-right.
- * Items on the same visual line (vertical centers within half an item height) are one line.
+ * Text of the items that are at least `minOverlap` (default 50%, by area) inside `box`.
+ * Ordered top to bottom, then left to right. Items whose vertical centers are within
+ * half the taller item's height share a line. On a line, two numeric pieces are joined
+ * without a space only when nearly touching (gap <= 0.35 x line height), so "2025 12"
+ * stays two tokens; everything else is joined with one space. Lines are joined with
+ * a single space.
  */
 export function textInBox(items: readonly TextBox[], box: PdfRect, minOverlap = 0.5): string {
   const b = normalizeRect(box);
@@ -69,29 +74,34 @@ export function textInBox(items: readonly TextBox[], box: PdfRect, minOverlap = 
     .filter((i) => i.str.trim().length > 0 && overlapFraction(normalizeRect(i.rect), b) >= minOverlap)
     .map((i) => {
       const r = normalizeRect(i.rect);
-      return { str: i.str, x0: r[0], x1: r[2], cy: (r[1] + r[3]) / 2, h: r[3] - r[1] };
+      return { str: i.str.trim(), x0: r[0], x1: r[2], cy: (r[1] + r[3]) / 2, h: Math.max(r[3] - r[1], 1) };
     })
     .sort((p, q) => q.cy - p.cy || p.x0 - q.x0);
 
-  // Group into lines.
-  const lines: (typeof hit)[] = [];
+  const lines: { cy: number; h: number; items: typeof hit }[] = [];
   for (const item of hit) {
-    const line = lines[lines.length - 1];
-    const ref = line?.[0];
-    if (line && ref && Math.abs(ref.cy - item.cy) <= Math.max(ref.h, item.h) / 2) line.push(item);
-    else lines.push([item]);
+    const line = lines.find((l) => Math.abs(l.cy - item.cy) <= Math.max(l.h, item.h) / 2);
+    if (line) {
+      line.items.push(item);
+      line.h = Math.max(line.h, item.h);
+    } else {
+      lines.push({ cy: item.cy, h: item.h, items: [item] });
+    }
   }
+  lines.sort((p, q) => q.cy - p.cy);
+
   return lines
     .map((line) => {
-      line.sort((p, q) => p.x0 - q.x0);
+      const row = [...line.items].sort((p, q) => p.x0 - q.x0);
       let out = "";
-      let prevX1 = 0;
-      for (const it of line) {
-        const s = it.str.trim();
-        // Numeric pieces only fuse when (nearly) touching, so "2025 12" stays two numbers.
-        const touching = it.x0 - prevX1 <= it.h * 0.5;
-        out += out === "" ? s : touching && joinsWithoutSpace(out, s) ? s : ` ${s}`;
-        prevX1 = it.x1;
+      let prev: (typeof row)[number] | undefined;
+      for (const it of row) {
+        if (!prev) out = it.str;
+        else {
+          const touching = it.x0 - prev.x1 <= JOIN_GAP * line.h;
+          out += touching && isNumericPiece(prev.str) && isNumericPiece(it.str) ? it.str : ` ${it.str}`;
+        }
+        prev = it;
       }
       return out;
     })

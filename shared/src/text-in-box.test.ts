@@ -5,6 +5,8 @@ import { overlapFraction, textInBox, textItemRect, toTextBoxes, type TextBox } f
 function box(str: string, x: number, y: number, w = str.length * 6, h = 10): TextBox {
   return { str, rect: [x, y, x + w, y + h] };
 }
+/** Same, from x0..x1 (server-style item). */
+const span = (str: string, x0: number, y0: number, x1: number, y1 = y0 + 10): TextBox => ({ str, rect: [x0, y0, x1, y1] });
 
 const items: TextBox[] = [
   box("Ending balance", 72, 600),
@@ -30,33 +32,45 @@ describe("textInBox", () => {
     expect(textInBox(items, [395, 596, 470, 615])).toBe("$83,421.17");
   });
   it("needs at least 50% of an item inside the box", () => {
-    // "$83,421.17" spans x 400..460; box covers 400..440 = 2/3 -> in; 400..420 = 1/3 -> out
     expect(textInBox(items, [400, 596, 440, 615])).toBe("$83,421.17");
     expect(textInBox(items, [400, 596, 420, 615])).toBe("");
-    // vertically: item y 600..610
     expect(textInBox(items, [395, 604, 470, 650])).toBe("$83,421.17");
     expect(textInBox(items, [395, 607, 470, 650])).toBe("");
+    const two = [span("in", 0, 0, 10), span("out", 6, 0, 16)];
+    expect(textInBox(two, [0, 0, 10, 10])).toBe("in");
+    expect(textInBox(two, [0, 0, 11, 10])).toBe("in out");
   });
   it("orders top-to-bottom then left-to-right, regardless of input order", () => {
     const shuffled = [items[3]!, items[1]!, items[2]!, items[0]!];
     expect(textInBox(shuffled, [0, 570, 612, 620])).toBe("Ending balance $83,421.17 Interest paid $1,204.33");
+    const abc = [span("c", 50, 100, 60), span("b", 20, 100, 30), span("a", 20, 200, 30)];
+    expect(textInBox(abc, [100, 300, 0, 0])).toBe("a b c");
   });
   it("treats items with slightly different baselines as one line", () => {
-    const a = box("Total", 72, 600);
-    const b = box("42", 130, 601);
-    expect(textInBox([b, a], [0, 590, 300, 620])).toBe("Total 42");
+    expect(textInBox([box("42", 130, 601), box("Total", 72, 600)], [0, 590, 300, 620])).toBe("Total 42");
   });
   it("joins touching numeric pieces without spaces", () => {
     const parts = [box("$", 400, 600, 6), box("83", 406, 600, 12), box(",421", 418, 600, 24), box(".17", 442, 600, 18)];
     expect(textInBox(parts, [390, 595, 480, 615])).toBe("$83,421.17");
+    const split = [span("$", 400, 600, 406), span("83,4", 406, 600, 424), span("21.17", 424.2, 600, 450)];
+    expect(textInBox(split, [395, 595, 460, 615])).toBe("$83,421.17");
+  });
+  it("joins only when the gap is at most 0.35 x line height", () => {
+    // line height 10: gap 3.5 joins, gap 3.6 does not
+    expect(textInBox([span("12", 0, 0, 12), span("34", 15.5, 0, 27.5)], [0, 0, 100, 10])).toBe("1234");
+    expect(textInBox([span("12", 0, 0, 12), span("34", 15.6, 0, 27.6)], [0, 0, 100, 10])).toBe("12 34");
   });
   it("keeps separate numbers apart when there is a gap", () => {
     const parts = [box("2025", 100, 600, 24), box("12", 150, 600, 12)];
     expect(textInBox(parts, [90, 595, 200, 615])).toBe("2025 12");
   });
-  it("does not glue words to numbers", () => {
-    const parts = [box("Account", 72, 600, 42), box("4821", 118, 600, 24)];
-    expect(textInBox(parts, [60, 595, 200, 615])).toBe("Account 4821");
+  it("does not glue words to numbers or words to words", () => {
+    expect(textInBox([box("Account", 72, 600, 42), box("4821", 118, 600, 24)], [60, 595, 200, 615])).toBe("Account 4821");
+    expect(textInBox([box("Ending", 72, 600, 36), box("balance", 108, 600, 42)], [60, 595, 200, 615])).toBe("Ending balance");
+  });
+  it("keeps separate columns apart", () => {
+    const cols = [span("Ending", 72, 600, 110), span("balance", 114, 600, 160), span("12", 300, 600, 312), span("34", 340, 600, 352)];
+    expect(textInBox(cols, [60, 595, 400, 615])).toBe("Ending balance 12 34");
   });
   it("accepts a box given in any corner order and ignores empty items", () => {
     expect(textInBox([...items, box(" ", 400, 600, 3)], [470, 615, 395, 596])).toBe("$83,421.17");

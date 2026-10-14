@@ -17,6 +17,21 @@ export function insertPerson(db: DatabaseSync, clock: Clock, p: { displayName: s
   return Number(r.lastInsertRowid);
 }
 
+export interface NewAccountIdentifier {
+  accountId: number;
+  kind: string;
+  value: string;
+  validFrom?: string;
+  validTo?: string;
+}
+
+export function insertAccountIdentifier(db: DatabaseSync, i: NewAccountIdentifier): number {
+  const r = db
+    .prepare("INSERT INTO account_identifiers (account_id, kind, value, valid_from, valid_to) VALUES (?, ?, ?, ?, ?)")
+    .run(i.accountId, i.kind, i.value, i.validFrom ?? null, i.validTo ?? null);
+  return Number(r.lastInsertRowid);
+}
+
 export interface NewInstitution {
   name: string;
   country: string;
