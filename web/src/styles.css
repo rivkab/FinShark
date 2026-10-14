@@ -1,0 +1,32 @@
+:root { font-family: system-ui, sans-serif; color: #1c2430; background: #f6f7f9; }
+body { margin: 0; }
+button { font: inherit; padding: 0.3rem 0.7rem; border: 1px solid #b8c0cc; border-radius: 6px; background: #fff; cursor: pointer; }
+button:disabled { opacity: 0.5; cursor: default; }
+.center { max-width: 32rem; margin: 4rem auto; padding: 0 1rem; }
+.people { display: flex; gap: 0.75rem; }
+.people button { padding: 1rem 1.5rem; font-size: 1.1rem; }
+.error { color: #a02020; }
+
+.shell > header { display: flex; align-items: center; gap: 1.5rem; padding: 0.6rem 1.25rem; background: #fff; border-bottom: 1px solid #d8dde5; }
+.brand { font-size: 1.1rem; }
+nav { display: flex; gap: 0.25rem; flex: 1; }
+nav button { border-color: transparent; background: transparent; }
+nav button.active { background: #e3ecfb; border-color: #b9cdf0; }
+.shell > main { padding: 1rem 1.25rem; max-width: 70rem; }
+
+.pdf-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; padding: 0.5rem 0; }
+.pdf-toolbar input[type="number"] { width: 4rem; }
+.pdf-scroll { overflow: auto; max-height: 75vh; background: #8a93a0; padding: 1rem; border-radius: 6px; }
+.pdf-page { position: relative; margin: 0 auto; background: #fff; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4); }
+.pdf-page canvas { display: block; }
+.pdf-overlay { position: absolute; inset: 0; cursor: crosshair; touch-action: none; user-select: none; }
+.pdf-text { position: absolute; color: transparent; white-space: pre; line-height: 1; pointer-events: none; overflow: hidden; }
+.pdf-text.shown { outline: 1px solid rgba(0, 120, 255, 0.5); color: rgba(0, 0, 0, 0.45); }
+.pdf-highlight { position: absolute; border: 2px solid #e8830c; background: rgba(232, 131, 12, 0.18); pointer-events: none; }
+.pdf-selection { position: absolute; border: 2px solid #1769e0; background: rgba(23, 105, 224, 0.15); pointer-events: none; }
+.pdf-selection.drafting { border-style: dashed; }
+
+pre.selection { background: #fff; border: 1px solid #d8dde5; padding: 0.75rem; border-radius: 6px; }
+table.data { border-collapse: collapse; background: #fff; }
+table.data th, table.data td { border: 1px solid #d8dde5; padding: 0.4rem 0.8rem; text-align: start; }
+table.data .num { text-align: end; font-variant-numeric: tabular-nums; }
