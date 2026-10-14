@@ -53,7 +53,8 @@ export default defineConfig({
       "/auth": proxyOptions(),
     },
   },
-  build: { target: "es2023" },
+  // Served from localhost, never over a network, so bundle size warnings are noise.
+  build: { target: "es2023", chunkSizeWarningLimit: 4000 },
 });
 
 function proxyOptions() {

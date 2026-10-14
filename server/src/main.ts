@@ -14,22 +14,40 @@ import { createVault, openVault } from "./vault/vault.ts";
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const vaultRoot = process.env["FINSHARK_VAULT"] ? path.resolve(process.env["FINSHARK_VAULT"]) : path.join(repoRoot, "dev-vault");
 
+/** Print a plain message (no stack trace) and stop. */
+function fail(message: string): never {
+  console.error(`\nFinShark could not start: ${message}\n`);
+  process.exit(1);
+}
+
+const nodeMajor = Number(process.versions.node.split(".")[0]);
+if (nodeMajor !== 24) {
+  fail(`it needs Node 24, but this is Node ${process.versions.node}. Run \`nvm use\` in the FinShark folder first.`);
+}
+
+// Open the vault before choosing a port: "already open" is the more useful message
+// when another FinShark is running, and it releases nothing if it fails.
+let vault;
+try {
+  if (!existsSync(vaultLayout(vaultRoot).infoFile)) {
+    createVault(vaultRoot, { now: new Date(), vaultId: randomUUID() });
+    console.log(`Created a new vault.`);
+  }
+  vault = openVault(vaultRoot);
+} catch (e) {
+  fail(e instanceof Error ? e.message : String(e));
+}
+console.log(`Vault: ${vault.layout.root} (id ${vault.info.vaultId})`);
+
 let chosen;
 try {
   chosen = await choosePort({ envPort: process.env["FINSHARK_PORT"], preferred: DEFAULT_PORT, isFree: isLoopbackPortFree });
 } catch (e) {
-  console.error(e instanceof Error ? e.message : String(e));
-  process.exit(1);
+  vault.close();
+  fail(e instanceof Error ? e.message : String(e));
 }
 const port = chosen.port;
 if (chosen.note) console.log(chosen.note);
-
-if (!existsSync(vaultLayout(vaultRoot).infoFile)) {
-  createVault(vaultRoot, { now: new Date(), vaultId: randomUUID() });
-  console.log(`Created a new vault.`);
-}
-const vault = openVault(vaultRoot);
-console.log(`Vault: ${vault.layout.root} (id ${vault.info.vaultId})`);
 
 const token = randomBytes(32).toString("base64url");
 const webDist = path.join(repoRoot, "web/dist");
@@ -62,7 +80,7 @@ try {
   await listenLoopback(app, port);
 } catch (e) {
   vault.close();
-  throw e;
+  fail(e instanceof Error ? e.message : String(e));
 }
 
 const link = `http://${LOOPBACK}:${port}/auth?token=${token}`;
