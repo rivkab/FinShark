@@ -1,0 +1,11 @@
+node_modules/
+dist/
+coverage/
+.DS_Store
+# Never commit vault data or backups
+dev-vault/
+*.ffbackup
+*.db
+*.db-wal
+*.db-shm
+*.tsbuildinfo

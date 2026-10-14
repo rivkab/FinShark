@@ -1,0 +1,9 @@
+{
+  "name": "pdf-text-check",
+  "private": true,
+  "type": "module",
+  "description": "Spike: check whether numbers in real (incl. Hebrew) PDFs extract correctly from the text layer.",
+  "dependencies": {
+    "pdfjs-dist": "4.10.38"
+  }
+}
