@@ -5,7 +5,8 @@ import { useActor, useRefData } from "./context.tsx";
 import { hrefDocument, hrefFact, hrefFacts } from "./route.ts";
 import { factDateLabel } from "./suggest.ts";
 import { AccountName, ErrorNote, FactAmount, FactConcept, StatusBadge, Warning, useLoad } from "./ui.tsx";
-import { mismatchWarning } from "./factForm.ts";
+import { FactFormFields } from "./FactFields.tsx";
+import { buildCorrectRequest, formFromFact, mismatchWarning, validateFactForm, type FactFormState } from "./factForm.ts";
 import { Cell, Text, Value } from "./Value.tsx";
 
 // ---------------------------------------------------------------- list
@@ -89,9 +90,11 @@ export function FactsPage({ filters }: { filters: Record<string, string> }) {
 
 export function FactHistory({ id }: { id: number }) {
   const { mutate } = useActor();
-  const { people } = useRefData();
+  const { people, concepts, accounts } = useRefData();
   const detail = useLoad(() => apiFetch<FactDetailDto>(`/api/facts/${id}`), id);
   const [error, setError] = useState<string | null>(null);
+  const [form, setForm] = useState<FactFormState | null>(null);
+  const [busy, setBusy] = useState(false);
 
   if (detail.error) return <section><p><a href="#/facts">All facts</a></p><ErrorNote>{detail.error}</ErrorNote></section>;
   if (!detail.data) return <p>Loading...</p>;
@@ -105,6 +108,25 @@ export function FactHistory({ id }: { id: number }) {
       await detail.reload();
     } catch (e) {
       setError(errorText(e));
+    }
+  };
+  const submitCorrection = async (verify: boolean) => {
+    if (!form || busy) return;
+    const concept = concepts.find((c) => c.id === form.conceptId);
+    const errs = validateFactForm(form, concept);
+    if (errs.length || !concept) return setError(errs.join(" "));
+    setBusy(true);
+    try {
+      const r = await mutate(() =>
+        apiFetch<{ fact: FactDto }>(`/api/facts/${id}/correct`, { method: "POST", body: buildCorrectRequest(form, concept, verify) }),
+      );
+      setError(null);
+      setForm(null);
+      window.location.hash = hrefFact(r.fact.id).slice(1);
+    } catch (e) {
+      setError(errorText(e));
+    } finally {
+      setBusy(false);
     }
   };
   const who = (e: FactEventDto) => e.actorName ?? (e.actor !== null ? people.find((p) => p.id === e.actor)?.displayName : null) ?? "someone";
@@ -125,6 +147,25 @@ export function FactHistory({ id }: { id: number }) {
         </dl>
         {warning && <Warning>{warning}</Warning>}
         {f.status === "rejected" && <p><button onClick={() => void reopen()}>Reopen for review</button></p>}
+        {(f.status === "proposed" || f.status === "verified") && !form && (
+          <p><button onClick={() => { setError(null); setForm(formFromFact(f)); }}>Correct this number</button></p>
+        )}
+        {form && (
+          <form onSubmit={(e) => { e.preventDefault(); void submitCorrection(true); }}>
+            <h3>Correct this number</h3>
+            {f.status === "verified" && (
+              <p className="muted small">
+                This number is verified. Saving creates a new number that replaces it; the old one stays in the history.
+              </p>
+            )}
+            <FactFormFields form={form} onChange={setForm} concepts={concepts} accounts={accounts} institutionId={null} period={{ periodStart: null, periodEnd: null }} />
+            <p>
+              <button type="submit" className="primary" disabled={busy}>Save correction and verify</button>{" "}
+              <button type="button" disabled={busy} onClick={() => void submitCorrection(false)}>Save for review</button>{" "}
+              <button type="button" disabled={busy} onClick={() => { setForm(null); setError(null); }}>Cancel</button>
+            </p>
+          </form>
+        )}
         <ErrorNote>{error}</ErrorNote>
       </div>
 
