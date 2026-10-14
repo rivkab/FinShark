@@ -22,6 +22,10 @@ export interface PdfSelection {
 export interface PdfHighlight {
   pageNo: number;
   rect: PdfRect;
+  /** CSS modifier: "proposed" | "verified" | "rejected" | "hint". Default style when absent. */
+  variant?: string;
+  /** Drawn thicker; the one the user is looking at. */
+  focused?: boolean;
 }
 
 export interface PdfViewerProps {
@@ -30,6 +34,10 @@ export interface PdfViewerProps {
   onSelect?: (selection: PdfSelection) => void;
   initialPage?: number;
   initialScale?: number;
+  /** Jump to this box: switches page and scrolls it into the middle of the view. Change `nonce` to re-trigger. */
+  focus?: { pageNo: number; rect: PdfRect; nonce?: number } | null;
+  /** Change to clear the blue "just drawn" box. */
+  selectionResetKey?: number;
 }
 
 interface PageView {
@@ -45,7 +53,9 @@ function isTextItem(i: unknown): boolean {
   return typeof i === "object" && i !== null && "str" in i && "transform" in i;
 }
 
-export function PdfViewer({ source, highlights = [], onSelect, initialPage = 1, initialScale = 1.25 }: PdfViewerProps) {
+export function PdfViewer({ source, highlights = [], onSelect, initialPage = 1, initialScale = 1.25, focus = null, selectionResetKey = 0 }: PdfViewerProps) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const pageRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
   const [doc, setDoc] = useState<PDFDocumentProxy | null>(null);
@@ -126,6 +136,25 @@ export function PdfViewer({ source, highlights = [], onSelect, initialPage = 1, 
     };
   }, [doc, pageNo, scale, turns]);
 
+  useEffect(() => setSelected(null), [selectionResetKey]);
+
+  // Follow `focus`: change page, then scroll once that page is drawn.
+  useEffect(() => {
+    if (focus && doc) setPageNo(Math.min(Math.max(1, focus.pageNo), doc.numPages));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focus?.pageNo, focus?.nonce, doc]);
+  useEffect(() => {
+    const box = scrollRef.current;
+    const page = pageRef.current;
+    if (!focus || !view || !box || !page || focus.pageNo !== pageNo) return;
+    const [l, t, r, b] = pdfRectToViewport(focus.rect, view.transform);
+    box.scrollTo({
+      top: page.offsetTop + t - box.clientHeight / 2 + (b - t) / 2,
+      left: page.offsetLeft + l - box.clientWidth / 2 + (r - l) / 2,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, focus?.nonce, focus?.pageNo, focus?.rect[0], focus?.rect[1], pageNo]);
+
   const numPages = doc?.numPages ?? 0;
   const goto = (n: number) => setPageNo(Math.min(Math.max(1, n), Math.max(1, numPages)));
 
@@ -194,8 +223,8 @@ export function PdfViewer({ source, highlights = [], onSelect, initialPage = 1, 
         </label>
       </div>
       {error && <p className="error">Could not display this PDF: {error}</p>}
-      <div className="pdf-scroll">
-        <div className="pdf-page" style={view ? { width: view.width, height: view.height } : undefined}>
+      <div className="pdf-scroll" ref={scrollRef}>
+        <div className="pdf-page" ref={pageRef} style={view ? { width: view.width, height: view.height } : undefined}>
           <canvas ref={canvasRef} />
           {view && (
             <div
@@ -215,7 +244,11 @@ export function PdfViewer({ source, highlights = [], onSelect, initialPage = 1, 
                 );
               })}
               {pageHighlights.map((h, i) => (
-                <div key={`h${i}`} className="pdf-highlight" style={toCss(h.rect)} />
+                <div
+                  key={`h${i}`}
+                  className={`pdf-highlight${h.variant ? ` ${h.variant}` : ""}${h.focused ? " focused" : ""}`}
+                  style={toCss(h.rect)}
+                />
               ))}
               {selected && selected.pageNo === pageNo && <div className="pdf-selection" style={toCss(selected.rect)} />}
               {drag && (
