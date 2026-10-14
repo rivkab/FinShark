@@ -69,10 +69,24 @@ function make(over: Partial<Parameters<typeof createBackup>[0]> = {}): Promise<C
 }
 
 describe("backup round trip", () => {
+  it("creates an unattended backup with only the public key, verifiable later", async () => {
+    const r = await createBackup({
+      layout,
+      db,
+      now: () => clock,
+      recipients: [key.recipient],
+      outDir: path.join(tmp, "out"),
+      appVersion: "0.0.0-test",
+    });
+    expect(r.verify).toBeNull();
+    const v = await verifyBackup(r.file, key.identity);
+    expect(v.ok, JSON.stringify(v.problems)).toBe(true);
+  });
+
   it("creates, verifies and restores identical data", async () => {
     const r = await make();
     expect(path.basename(r.file)).toBe("FinShark-2026-10-07T21-14.ffbackup");
-    expect(r.verify.ok, JSON.stringify(r.verify.problems)).toBe(true);
+    expect(r.verify!.ok, JSON.stringify(r.verify!.problems)).toBe(true);
     expect(r.vaultWarnings).toEqual([]);
     expect(r.manifest.files.map((f) => f.path)).not.toContainEqual(expect.stringContaining("cache"));
     expect((await fs.readdir(path.join(tmp, "out"))).sort()).toEqual(["FinShark-2026-10-07T21-14.ffbackup"]);
@@ -162,8 +176,8 @@ describe("tamper and failure cases", () => {
     await fs.writeFile(path.join(layout.root, d.rel), Buffer.concat([d.bytes, Buffer.from("tampered")]));
     const r = await make();
     expect(r.vaultWarnings.map((w) => w.code)).toContain("document-modified");
-    expect(r.verify.ok).toBe(false);
-    expect(r.verify.problems.map((p) => p.code)).toContain("db-document-hash-mismatch");
+    expect(r.verify!.ok).toBe(false);
+    expect(r.verify!.problems.map((p) => p.code)).toContain("db-document-hash-mismatch");
   });
 
   it("flags a missing document file and an orphan file", async () => {
@@ -175,7 +189,7 @@ describe("tamper and failure cases", () => {
     const codes = r.vaultWarnings.map((w) => w.code);
     expect(codes).toContain("document-missing");
     expect(codes).toContain("document-orphan");
-    expect(r.verify.problems.map((p) => p.code)).toContain("db-document-missing");
+    expect(r.verify!.problems.map((p) => p.code)).toContain("db-document-missing");
   });
 
   it("refuses to restore into a non-empty directory and leaves it untouched", async () => {

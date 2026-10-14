@@ -35,10 +35,12 @@ export interface CreateBackupOptions {
   /** Caller's integrity checks (DESIGN §7 "Verify vault"). Throw to abort the backup. */
   preflight?: () => void | Promise<void>;
   /**
-   * Private key used to verify the file right after writing it. Required: an
-   * unverified backup is not accepted as a backup.
+   * Private key used to verify the file right after writing it. Interactive
+   * backups pass it. Unattended backups encrypt to the public key only (DESIGN
+   * §8.3) and are verified the next time the key is available; they get
+   * `verify: null`.
    */
-  verifyIdentity: string;
+  verifyIdentity?: string;
 }
 
 export interface CreateBackupResult {
@@ -53,7 +55,8 @@ export interface CreateBackupResult {
    * for the first two kinds.
    */
   vaultWarnings: Problem[];
-  verify: VerifyReport;
+  /** null when no verifyIdentity was given: the backup is written but not yet verified. */
+  verify: VerifyReport | null;
 }
 
 interface Hashed {
@@ -256,7 +259,7 @@ export async function createBackup(opts: CreateBackupOptions): Promise<CreateBac
     }
 
     // 4. Verify what is actually on disk.
-    const verify = await verifyBackup(finalPath, opts.verifyIdentity);
+    const verify = opts.verifyIdentity === undefined ? null : await verifyBackup(finalPath, opts.verifyIdentity);
     return { file: finalPath, manifest, bytes, vaultWarnings, verify };
   } finally {
     await fs.rm(workDir, { recursive: true, force: true });
