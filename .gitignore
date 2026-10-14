@@ -9,3 +9,6 @@ dev-vault/
 *.db-wal
 *.db-shm
 *.tsbuildinfo
+
+# Agent worktrees
+.claude/worktrees/
