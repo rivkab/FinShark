@@ -304,7 +304,9 @@ export function correctFact(deps: FactDeps, actorId: number | null | undefined, 
   try {
     const { newId, corroboratedBy } = inTransaction(db, () => {
       const newId = insertFact(db, prepared, {
-        origin: "user_correction",
+        // A corrected attestation is still an attestation (no document behind it);
+        // supersedes_fact_id is what marks it as a correction.
+        origin: old.origin === "attestation" ? "attestation" : "user_correction",
         at,
         actor,
         extractionRunId: old.extractionRunId,

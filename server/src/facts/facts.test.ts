@@ -427,6 +427,15 @@ describe("createAttestation", () => {
     expect(verifyFact(deps, actor, view.fact.id).ok).toBe(true);
   });
 
+  it("stays an attestation when corrected", () => {
+    const original = createAttestation(deps, actor, att());
+    const r = correctFact(deps, actor, original.fact.id, { instantDate: "2025-07-31" });
+    if (!r.ok) throw new Error("unexpected conflict");
+    expect(r.view.fact).toMatchObject({ origin: "attestation", supersedesFactId: original.fact.id, instantDate: "2025-07-31" });
+    expect(r.view.sources).toEqual([]);
+    expect(r.superseded.fact.status).toBe("superseded");
+  });
+
   it("refuses a missing or blank note, an invalid period, and a missing actor", async () => {
     await expectRefusal(() => createAttestation(deps, actor, att({ note: "" })), "note_required");
     await expectRefusal(() => createAttestation(deps, actor, att({ note: "   " })), "note_required");
