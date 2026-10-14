@@ -140,6 +140,10 @@ describe("full flow", () => {
     const patch2 = await call("PATCH", `/api/documents/${documentId}`, { institutionId: inst.id, periodStart: "2025-01-01", periodEnd: "2025-12-31", status: "reviewed" });
     expect(patch2.statusCode).toBe(200);
     expect(patch2.json()).toMatchObject({ institutionId: inst.id, status: "reviewed", periodEnd: "2025-12-31" });
+    const back = await call("PATCH", `/api/documents/${documentId}`, { status: "inbox" });
+    expect(back.statusCode).toBe(200);
+    expect(back.json().status).toBe("inbox");
+    expect((await call("GET", `/api/documents/${documentId}`)).json().status).toBe("inbox");
     expect((await call("PATCH", `/api/documents/${documentId}`, { periodStart: "2025-02-30" })).statusCode).toBe(400);
     expect((await call("PATCH", `/api/documents/${documentId}`, { status: "removed" })).statusCode).toBe(400);
     expect((await call("POST", `/api/documents/${documentId}/accounts`, { accountId })).json().accountIds).toEqual([accountId]);
