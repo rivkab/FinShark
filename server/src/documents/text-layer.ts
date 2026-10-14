@@ -59,15 +59,8 @@ function pdfjsPaths() {
 /** Default extractor: pdf.js text layer, per-page geometry and positioned items. */
 export const extractWithPdfjs: ExtractFn = async (pdfPath) => {
   const data = new Uint8Array(await fs.readFile(pdfPath));
-  // isEvalSupported is honoured at runtime but missing from the v6 type declarations.
-  const params: Parameters<typeof getDocument>[0] & { isEvalSupported: boolean } = {
-    data,
-    ...pdfjsPaths(),
-    isEvalSupported: false,
-    disableFontFace: true,
-    verbosity: 0,
-  };
-  const task = getDocument(params);
+  // pdf.js 6 never evaluates code from PDF content, so there is no isEvalSupported option.
+  const task = getDocument({ data, ...pdfjsPaths(), disableFontFace: true, verbosity: 0 });
   try {
     const doc = await task.promise;
     const pages: PageTextLayer[] = [];
