@@ -18,6 +18,7 @@
 //   POST /api/accounts        CreateAccountRequest       -> 201 AccountDto
 //   POST /api/accounts/:id/identifiers  AddIdentifierRequest -> 201 AccountDto
 //   PUT  /api/accounts/:id/account-number  SetAccountNumberRequest -> AccountDto
+//   PUT  /api/accounts/:id/owners           SetAccountOwnersRequest -> AccountDto
 //   GET  /api/concepts                       -> { concepts: ConceptDto[] }
 //   GET  /api/terms                          -> { taxonomies: TaxonomyDto[] }
 //   POST /api/documents       raw application/pdf body, header X-Filename (URI-encoded),
@@ -101,6 +102,13 @@ export interface AccountIdentifierDto {
   validFrom: string | null;
   validTo: string | null;
 }
+export type AccountOwnerRole = "owner" | "joint" | "custodian" | "beneficiary" | "participant";
+export interface AccountOwnerDto {
+  personId: number;
+  role: AccountOwnerRole;
+  /** Decimal fraction like '0.5'; null when unspecified. */
+  share: string | null;
+}
 export interface AccountDto {
   id: number;
   institutionId: number;
@@ -117,6 +125,14 @@ export interface AccountDto {
   accountNumber: string | null;
   /** All identifiers, including past account numbers with their validity dates. */
   identifiers: AccountIdentifierDto[];
+  /** Current owners (not ended). Empty only for accounts created before owners were required. */
+  owners: AccountOwnerDto[];
+}
+/** Owners as given in requests; role defaults to 'owner', share to unspecified. */
+export interface AccountOwnerInput {
+  personId: number;
+  role?: AccountOwnerRole;
+  share?: string | null;
 }
 export interface CreateAccountRequest {
   institutionId: number;
@@ -131,6 +147,12 @@ export interface CreateAccountRequest {
   closedOn?: string;
   statementCadence?: "monthly" | "quarterly" | "semiannual" | "annual" | "irregular";
   accountNumber?: string;
+  /** At least one. */
+  owners: AccountOwnerInput[];
+}
+/** Replaces the current owners (at least one). Owners removed keep their history. */
+export interface SetAccountOwnersRequest {
+  owners: AccountOwnerInput[];
 }
 /** null clears the number. The previous number is kept as history. */
 export interface SetAccountNumberRequest {

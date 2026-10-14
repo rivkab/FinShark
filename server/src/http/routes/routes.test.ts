@@ -38,7 +38,7 @@ afterEach(async () => {
   await v.cleanup();
 });
 
-async function call(method: "GET" | "POST" | "PATCH", url: string, body?: unknown, extra: Record<string, string> = {}) {
+async function call(method: "GET" | "POST" | "PATCH" | "PUT", url: string, body?: unknown, extra: Record<string, string> = {}) {
   const isRaw = Buffer.isBuffer(body) || body instanceof Uint8Array;
   const res = await app.inject({
     method,
@@ -125,7 +125,7 @@ describe("full flow", () => {
     expect(il).toMatchObject({ country: "IL", language: "he" });
     const inst = (await call("POST", "/api/institutions", { name: "Example Brokerage", country: "US" })).json();
     expect(inst.language).toBe("en");
-    const acct = await call("POST", "/api/accounts", { institutionId: inst.id, displayName: "Brokerage 4821", nativeCurrency: "USD" });
+    const acct = await call("POST", "/api/accounts", { institutionId: inst.id, displayName: "Brokerage 4821", nativeCurrency: "USD", owners: [{ personId: 1 }] });
     expect(acct.statusCode).toBe(201);
     expect(acct.json()).toMatchObject({ language: "en", country: "US", institutionName: "Example Brokerage", identifiers: [] });
     const accountId = acct.json().id as number;
@@ -230,7 +230,7 @@ describe("full flow", () => {
     await choosePerson();
     const documentId = (await upload(sampleStatementPdf())).json().documentId as number;
     const inst = (await call("POST", "/api/institutions", { name: "Example Brokerage", country: "US" })).json();
-    const accountId = (await call("POST", "/api/accounts", { institutionId: inst.id, displayName: "Brokerage 4821", nativeCurrency: "USD" })).json().id as number;
+    const accountId = (await call("POST", "/api/accounts", { institutionId: inst.id, displayName: "Brokerage 4821", nativeCurrency: "USD", owners: [{ personId: 1 }] })).json().id as number;
     const base = { documentId, pageNo: 1, bbox: [395, 595, 480, 615], conceptId: "balance.ending", accountId, value: "$1.00", currency: "USD", instantDate: "2025-12-31" };
     const bad = async (over: Record<string, unknown>, status: number, error: string) => {
       const r = await call("POST", "/api/facts", { ...base, ...over });
@@ -267,6 +267,58 @@ describe("people", () => {
   });
 });
 
+describe("account owners", () => {
+  async function setup() {
+    await choosePerson(); // Dana, id 1
+    await call("POST", "/api/people", { displayName: "Noa" }); // id 2
+    const inst = (await call("POST", "/api/institutions", { name: "Example Bank", country: "US" })).json();
+    return inst.id as number;
+  }
+  const create = (institutionId: number, owners: unknown) =>
+    call("POST", "/api/accounts", { institutionId, displayName: "Joint", nativeCurrency: "USD", owners });
+
+  it("requires at least one known owner at creation", async () => {
+    const inst = await setup();
+    expect((await call("POST", "/api/accounts", { institutionId: inst, displayName: "A", nativeCurrency: "USD" })).statusCode).toBe(400);
+    expect((await create(inst, [])).statusCode).toBe(400);
+    expect((await create(inst, [{ personId: 99 }])).statusCode).toBe(400);
+    expect((await create(inst, [{ personId: 1 }, { personId: 1 }])).statusCode).toBe(400);
+    expect((await create(inst, [{ personId: 1, role: "boss" }])).statusCode).toBe(400);
+    expect((await create(inst, [{ personId: 1, share: "1.5" }])).statusCode).toBe(400);
+    expect((await create(inst, [{ personId: 1, share: "half" }])).statusCode).toBe(400);
+  });
+
+  it("records owners with role and exact share", async () => {
+    const inst = await setup();
+    const res = await create(inst, [{ personId: 1, share: "0.50" }, { personId: 2, role: "joint", share: "0.5" }]);
+    expect(res.statusCode).toBe(201);
+    expect(res.json().owners).toEqual([
+      { personId: 1, role: "owner", share: "0.5" },
+      { personId: 2, role: "joint", share: "0.5" },
+    ]);
+  });
+
+  it("keeps removed owners as history and leaves unchanged owners alone", async () => {
+    const inst = await setup();
+    const id = (await create(inst, [{ personId: 1 }])).json().id as number;
+    const changed = await call("PUT", `/api/accounts/${id}/owners`, { owners: [{ personId: 1 }, { personId: 2 }] });
+    expect(changed.statusCode).toBe(200);
+    expect(changed.json().owners).toMatchObject([{ personId: 1 }, { personId: 2 }]);
+    const swapped = await call("PUT", `/api/accounts/${id}/owners`, { owners: [{ personId: 2 }] });
+    expect(swapped.json().owners).toEqual([{ personId: 2, role: "owner", share: null }]);
+    const rows = v.vault.db
+      .prepare("SELECT person_id, valid_from, valid_to FROM account_owners WHERE account_id = ? ORDER BY id")
+      .all(id) as { person_id: number; valid_from: string | null; valid_to: string | null }[];
+    const today = v.now().toISOString().slice(0, 10);
+    expect(rows).toEqual([
+      { person_id: 1, valid_from: null, valid_to: today },
+      { person_id: 2, valid_from: today, valid_to: null },
+    ]);
+    expect((await call("PUT", `/api/accounts/${id}/owners`, { owners: [] })).statusCode).toBe(400);
+    expect((await call("PUT", "/api/accounts/9999/owners", { owners: [{ personId: 1 }] })).statusCode).toBe(404);
+  });
+});
+
 describe("account numbers", () => {
   beforeEach(() => {
     chosen = false;
@@ -278,7 +330,7 @@ describe("account numbers", () => {
       chosen = true;
     }
     const inst = (await call("POST", "/api/institutions", { name: "Example Bank", country: "US" })).json();
-    return call("POST", "/api/accounts", { institutionId: inst.id, displayName: "Checking", nativeCurrency: "USD", ...body });
+    return call("POST", "/api/accounts", { institutionId: inst.id, displayName: "Checking", nativeCurrency: "USD", owners: [{ personId: 1 }], ...body });
   }
   const put = (id: number, accountNumber: unknown) =>
     app.inject({
@@ -367,7 +419,7 @@ describe("uploads", () => {
     await choosePerson();
     const documentId = (await upload(makePdf([{ texts: [] }]), "scan.pdf")).json().documentId as number;
     const inst = (await call("POST", "/api/institutions", { name: "Example Brokerage", country: "US" })).json();
-    const accountId = (await call("POST", "/api/accounts", { institutionId: inst.id, displayName: "Brokerage 4821", nativeCurrency: "USD" })).json().id as number;
+    const accountId = (await call("POST", "/api/accounts", { institutionId: inst.id, displayName: "Brokerage 4821", nativeCurrency: "USD", owners: [{ personId: 1 }] })).json().id as number;
     const r = await call("POST", "/api/facts", { documentId, pageNo: 1, bbox: [100, 100, 200, 120], conceptId: "balance.ending", accountId, value: "5", currency: "USD", instantDate: "2025-12-31" });
     expect(r.statusCode).toBe(201);
     expect(r.json()).toMatchObject({ valueMatchesSource: null, fact: { sources: [{ quotedText: null }] } });

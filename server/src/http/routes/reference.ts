@@ -1,8 +1,10 @@
 // People, institutions, accounts, concepts, terms.
 import type { FastifyInstance } from "fastify";
+import { Decimal } from "decimal.js";
 import {
   isKnownCurrency,
   type AccountDto,
+  type AccountOwnerDto,
   type ConceptDto,
   type InstitutionDto,
   type Language,
@@ -16,7 +18,10 @@ import {
   insertInstitution,
   insertPerson,
   normalizeAccountNumber,
+  OWNER_ROLES,
   setAccountNumber,
+  setAccountOwners,
+  type AccountOwnerInput,
 } from "../../db/repo.ts";
 import { isIsoDate } from "../../facts/validate.ts";
 import { HttpError, badRequest, idParam, jsonBody, notFound, optEnum, optStr, reqInt, reqStr, type ApiContext, type Json } from "./common.ts";
@@ -41,6 +46,9 @@ export function loadAccounts(ctx: ApiContext, onlyId?: number): AccountDto[] {
     )
     .all(...(onlyId === undefined ? [] : [onlyId])) as Row[];
   const idents = ctx.db.prepare("SELECT * FROM account_identifiers WHERE account_id = ? ORDER BY id");
+  const ownerRows = ctx.db.prepare(
+    "SELECT person_id, role, share FROM account_owners WHERE account_id = ? AND valid_to IS NULL ORDER BY id",
+  );
   return rows.map((r) => {
     const identifiers = (idents.all(Number(r["id"])) as Row[]).map((x) => ({
       id: Number(x["id"]),
@@ -64,6 +72,13 @@ export function loadAccounts(ctx: ApiContext, onlyId?: number): AccountDto[] {
     statementCadence: (r["statement_cadence"] as string | null) ?? null,
     accountNumber: current?.value ?? null,
     identifiers,
+    owners: (ownerRows.all(Number(r["id"])) as Row[]).map(
+      (o): AccountOwnerDto => ({
+        personId: Number(o["person_id"]),
+        role: o["role"] as AccountOwnerDto["role"],
+        share: (o["share"] as string | null) ?? null,
+      }),
+    ),
     };
   });
 }
@@ -79,6 +94,37 @@ function accountNumberField(o: Json, required: boolean): string | null | undefin
   } catch (e) {
     throw badRequest((e as Error).message);
   }
+}
+
+/** Validated owners from a request body: at least one, known people, no repeats. */
+function ownersField(ctx: ApiContext, o: Json): AccountOwnerInput[] {
+  const raw = o["owners"];
+  if (!Array.isArray(raw) || raw.length === 0) throw badRequest("An account needs at least one owner.");
+  const seen = new Set<string>();
+  return raw.map((item: unknown): AccountOwnerInput => {
+    if (typeof item !== "object" || item === null || Array.isArray(item)) throw badRequest("Each owner must be an object.");
+    const e = item as Json;
+    const personId = reqInt(e, "personId");
+    if (!ctx.db.prepare("SELECT 1 FROM people WHERE id = ?").get(personId)) throw badRequest(`No such person: ${personId}`);
+    const role = optEnum(e, "role", OWNER_ROLES) ?? "owner";
+    let share: string | null = null;
+    const rawShare = e["share"];
+    if (rawShare !== undefined && rawShare !== null) {
+      if (typeof rawShare !== "string") throw badRequest("share must be a decimal string like \"0.5\", or null.");
+      let d: Decimal;
+      try {
+        d = new Decimal(rawShare.trim());
+      } catch {
+        throw badRequest(`share must be a decimal fraction, got "${rawShare}".`);
+      }
+      if (!d.gt(0) || d.gt(1)) throw badRequest("share must be greater than 0 and at most 1.");
+      share = d.toFixed();
+    }
+    const key = `${personId}|${role}`;
+    if (seen.has(key)) throw badRequest("The same person is listed twice with the same role.");
+    seen.add(key);
+    return { personId, role, share };
+  });
 }
 
 function optDate(o: Json, k: string): string | undefined {
@@ -143,6 +189,7 @@ export function registerReferenceRoutes(app: FastifyInstance, ctx: ApiContext): 
     const closedOn = optDate(o, "closedOn");
     const cadence = optEnum(o, "statementCadence", ["monthly", "quarterly", "semiannual", "annual", "irregular"] as const);
     const accountNumber = accountNumberField(o, false);
+    const owners = ownersField(ctx, o);
     const id = insertAccount(db, ctx.now, {
       institutionId,
       displayName: reqStr(o, "displayName").trim(),
@@ -155,6 +202,7 @@ export function registerReferenceRoutes(app: FastifyInstance, ctx: ApiContext): 
       ...(cadence !== undefined ? { statementCadence: cadence } : {}),
     });
     if (accountNumber) setAccountNumber(db, ctx.now, id, accountNumber);
+    setAccountOwners(db, ctx.now, id, owners);
     return reply.code(201).send(loadAccounts(ctx, id)[0]);
   });
 
@@ -162,6 +210,13 @@ export function registerReferenceRoutes(app: FastifyInstance, ctx: ApiContext): 
     const accountId = idParam(req);
     if (!db.prepare("SELECT 1 FROM accounts WHERE id = ?").get(accountId)) throw notFound("Account");
     setAccountNumber(db, ctx.now, accountId, accountNumberField(jsonBody(req), true) ?? null);
+    return loadAccounts(ctx, accountId)[0];
+  });
+
+  app.put("/api/accounts/:id/owners", async (req) => {
+    const accountId = idParam(req);
+    if (!db.prepare("SELECT 1 FROM accounts WHERE id = ?").get(accountId)) throw notFound("Account");
+    setAccountOwners(db, ctx.now, accountId, ownersField(ctx, jsonBody(req)));
     return loadAccounts(ctx, accountId)[0];
   });
 

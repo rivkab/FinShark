@@ -7,6 +7,7 @@ import type {
   InstitutionDto,
   Language,
   SetAccountNumberRequest,
+  SetAccountOwnersRequest,
 } from "@finshark/shared";
 import { apiFetch, errorText } from "./api.ts";
 import { useActor, useRefData } from "./context.tsx";
@@ -47,7 +48,7 @@ export function AccountsPage() {
       ) : (
         <table className="data">
           <thead>
-            <tr><th>Account</th><th>Institution</th><th>Account number</th><th>Country</th><th>Currency</th><th>Other identifiers</th><th>Dates</th><th /></tr>
+            <tr><th>Account</th><th>Institution</th><th>Owners</th><th>Account number</th><th>Country</th><th>Currency</th><th>Other identifiers</th><th>Dates</th><th /></tr>
           </thead>
           <tbody>
             {accounts.map((a) => (
@@ -74,6 +75,84 @@ function Identifiers({ list }: { list: AccountIdentifierDto[] }) {
         </div>
       ))}
     </>
+  );
+}
+
+/** Checkboxes for choosing people; at least one must stay checked. */
+function OwnerPicker({ selected, onChange }: { selected: number[]; onChange: (ids: number[]) => void }) {
+  const { people } = useRefData();
+  if (people.length === 0) return <p className="muted">Add a person first (People page); every account needs an owner.</p>;
+  return (
+    <div>
+      {people.map((p) => (
+        <label key={p.id} className="inline">
+          <input
+            type="checkbox"
+            checked={selected.includes(p.id)}
+            onChange={(e) => onChange(e.target.checked ? [...selected, p.id] : selected.filter((x) => x !== p.id))}
+          />{" "}
+          <Text>{p.displayName}</Text>{" "}
+        </label>
+      ))}
+    </div>
+  );
+}
+
+function Owners({ account }: { account: AccountDto }) {
+  const { people, reload } = useRefData();
+  const { mutate } = useActor();
+  const [editing, setEditing] = useState(false);
+  const [selected, setSelected] = useState<number[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const save = async () => {
+    if (selected.length === 0) return setError("Choose at least one owner.");
+    // Keep role and share of owners that stay; new ones are plain owners.
+    const body: SetAccountOwnersRequest = {
+      owners: selected.map((personId) => {
+        const existing = account.owners.find((o) => o.personId === personId);
+        return { personId, role: existing?.role ?? "owner", share: existing?.share ?? null };
+      }),
+    };
+    setBusy(true);
+    try {
+      await mutate(() => apiFetch<AccountDto>(`/api/accounts/${account.id}/owners`, { method: "PUT", body }));
+      setError(null);
+      setEditing(false);
+      await reload();
+    } catch (e) {
+      setError(errorText(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (!editing) {
+    return (
+      <>
+        {account.owners.length === 0 && <div className="muted">none recorded</div>}
+        {account.owners.map((o) => (
+          <div key={`${o.personId}-${o.role}`}>
+            <Text>{people.find((p) => p.id === o.personId)?.displayName ?? `#${o.personId}`}</Text>
+            {o.role !== "owner" && <span className="muted"> ({o.role})</span>}
+            {o.share && <span className="muted"> <Value>{o.share}</Value></span>}
+          </div>
+        ))}
+        <button type="button" onClick={() => { setSelected(account.owners.map((o) => o.personId)); setEditing(true); }}>
+          {account.owners.length === 0 ? "Add" : "Change"}
+        </button>
+      </>
+    );
+  }
+  return (
+    <form onSubmit={(e) => { e.preventDefault(); void save(); }}>
+      <OwnerPicker selected={selected} onChange={setSelected} />
+      <button type="submit" disabled={busy}>Save</button>{" "}
+      <button type="button" onClick={() => { setEditing(false); setError(null); }}>Cancel</button>
+      {account.owners.length > 0 && <div className="muted">Previous owners are kept in the account's history.</div>}
+      <ErrorNote>{error}</ErrorNote>
+    </form>
   );
 }
 
@@ -128,6 +207,7 @@ function AccountRow({ account: a }: { account: AccountDto }) {
       <tr>
         <Cell><AccountName account={a} /></Cell>
         <Cell><Text>{a.institutionName}</Text></Cell>
+        <td><Owners account={a} /></td>
         <td><AccountNumber account={a} /></td>
         <td>{a.country}</td>
         <td>{a.nativeCurrency}</td>
@@ -143,7 +223,7 @@ function AccountRow({ account: a }: { account: AccountDto }) {
       </tr>
       {open && (
         <tr>
-          <td colSpan={8}>
+          <td colSpan={9}>
             <Attest account={a} onDone={() => setOpen(false)} />
           </td>
         </tr>
@@ -274,8 +354,9 @@ function AddInstitution() {
 }
 
 function AddAccount() {
-  const { institutions, reload } = useRefData();
+  const { institutions, people, reload } = useRefData();
   const { mutate } = useActor();
+  const [ownerIds, setOwnerIds] = useState<number[]>(people.length === 1 ? [people[0]!.id] : []);
   const [institutionId, setInstitutionId] = useState(String(institutions[0]?.id ?? ""));
   const [displayName, setDisplayName] = useState("");
   const [altName, setAltName] = useState("");
@@ -296,7 +377,9 @@ function AddAccount() {
   const submit = async () => {
     if (institutionId === "") return setError("Choose the institution.");
     if (displayName.trim() === "") return setError("Enter the account's name.");
+    if (ownerIds.length === 0) return setError("Choose at least one owner.");
     const body: CreateAccountRequest = {
+      owners: ownerIds.map((personId) => ({ personId })),
       institutionId: Number(institutionId),
       displayName: displayName.trim(),
       nativeCurrency: currency,
@@ -358,6 +441,10 @@ function AddAccount() {
           </select>
         </label>
         <label><span>Account number (optional)</span><input type="text" dir="ltr" size={16} value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)} /></label>
+      </div>
+      <div>
+        <span>Owner(s)</span>
+        <OwnerPicker selected={ownerIds} onChange={setOwnerIds} />
       </div>
       <ErrorNote>{error}</ErrorNote>
       <div><button type="submit" disabled={busy}>Add account</button></div>

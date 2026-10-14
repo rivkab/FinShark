@@ -76,6 +76,56 @@ export function setAccountNumber(db: DatabaseSync, clock: Clock, accountId: numb
   }
 }
 
+export const OWNER_ROLES = ["owner", "joint", "custodian", "beneficiary", "participant"] as const;
+export type OwnerRole = (typeof OWNER_ROLES)[number];
+
+export interface AccountOwnerInput {
+  personId: number;
+  role: OwnerRole;
+  /** Decimal fraction like '0.5', or null when unspecified. */
+  share: string | null;
+}
+
+const ownerKey = (o: AccountOwnerInput): string => `${o.personId}|${o.role}|${o.share ?? ""}`;
+
+/**
+ * Set an account's current owners. Owners no longer listed keep their row with
+ * valid_to = today (ownership is time-ranged); new ones are valid from today, or
+ * from the start when the account had no owners yet. Listing the same owners again
+ * changes nothing.
+ */
+export function setAccountOwners(db: DatabaseSync, clock: Clock, accountId: number, owners: AccountOwnerInput[]): void {
+  const today = iso(clock).slice(0, 10);
+  const open = db
+    .prepare("SELECT id, person_id, role, share FROM account_owners WHERE account_id = ? AND valid_to IS NULL")
+    .all(accountId) as { id: number; person_id: number; role: OwnerRole; share: string | null }[];
+  const hadAny = db.prepare("SELECT 1 FROM account_owners WHERE account_id = ? LIMIT 1").get(accountId) !== undefined;
+  const wanted = new Map(owners.map((o) => [ownerKey(o), o]));
+  const kept = new Set<string>();
+  db.exec("BEGIN");
+  try {
+    for (const row of open) {
+      const key = ownerKey({ personId: row.person_id, role: row.role, share: row.share });
+      if (wanted.has(key) && !kept.has(key)) kept.add(key);
+      else db.prepare("UPDATE account_owners SET valid_to = ? WHERE id = ?").run(today, row.id);
+    }
+    for (const [key, o] of wanted) {
+      if (kept.has(key)) continue;
+      db.prepare("INSERT INTO account_owners (account_id, person_id, role, share, valid_from) VALUES (?, ?, ?, ?, ?)").run(
+        accountId,
+        o.personId,
+        o.role,
+        o.share,
+        hadAny ? today : null,
+      );
+    }
+    db.exec("COMMIT");
+  } catch (e) {
+    db.exec("ROLLBACK");
+    throw e;
+  }
+}
+
 export interface NewInstitution {
   name: string;
   country: string;

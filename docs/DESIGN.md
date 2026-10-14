@@ -955,3 +955,13 @@ correcting a fact is refused (`subject_required`) unless the matching `account_i
 `person_id` is present. Enforced in `prepareFact`, not by a table CHECK, because
 facts are append-only and rows written before migration 003 may lack it; those stay
 readable. New concepts default to `account`.
+
+### D9. Every account has at least one current owner (2026-10-14)
+
+Ownership stays the time-ranged `account_owners` relation (§2.2). Creating an account
+through the API requires `owners` (one or more people, each with a role defaulting to
+`owner` and an optional exact-decimal `share`). `PUT /api/accounts/:id/owners` replaces
+the current set and refuses an empty one; owners who drop out keep their row with
+`valid_to` set to today, so history is preserved. The "at least one" rule is enforced
+in the API, not the schema, because accounts created before this decision have no owner
+rows; they show as "none recorded" and can be fixed from the Accounts page.
