@@ -9,7 +9,15 @@ import {
   type PersonDto,
   type TaxonomyDto,
 } from "@finshark/shared";
-import { insertAccount, insertAccountIdentifier, insertInstitution, insertPerson } from "../../db/repo.ts";
+import {
+  ACCOUNT_NUMBER_KIND,
+  insertAccount,
+  insertAccountIdentifier,
+  insertInstitution,
+  insertPerson,
+  normalizeAccountNumber,
+  setAccountNumber,
+} from "../../db/repo.ts";
 import { isIsoDate } from "../../facts/validate.ts";
 import { badRequest, idParam, jsonBody, notFound, optEnum, optStr, reqInt, reqStr, type ApiContext, type Json } from "./common.ts";
 
@@ -33,7 +41,16 @@ export function loadAccounts(ctx: ApiContext, onlyId?: number): AccountDto[] {
     )
     .all(...(onlyId === undefined ? [] : [onlyId])) as Row[];
   const idents = ctx.db.prepare("SELECT * FROM account_identifiers WHERE account_id = ? ORDER BY id");
-  return rows.map((r) => ({
+  return rows.map((r) => {
+    const identifiers = (idents.all(Number(r["id"])) as Row[]).map((x) => ({
+      id: Number(x["id"]),
+      kind: String(x["kind"]),
+      value: String(x["value"]),
+      validFrom: (x["valid_from"] as string | null) ?? null,
+      validTo: (x["valid_to"] as string | null) ?? null,
+    }));
+    const current = identifiers.filter((i) => i.kind === ACCOUNT_NUMBER_KIND && i.validTo === null).at(-1);
+    return {
     id: Number(r["id"]),
     institutionId: Number(r["institution_id"]),
     institutionName: String(r["institution_name"]),
@@ -45,14 +62,23 @@ export function loadAccounts(ctx: ApiContext, onlyId?: number): AccountDto[] {
     openedOn: (r["opened_on"] as string | null) ?? null,
     closedOn: (r["closed_on"] as string | null) ?? null,
     statementCadence: (r["statement_cadence"] as string | null) ?? null,
-    identifiers: (idents.all(Number(r["id"])) as Row[]).map((x) => ({
-      id: Number(x["id"]),
-      kind: String(x["kind"]),
-      value: String(x["value"]),
-      validFrom: (x["valid_from"] as string | null) ?? null,
-      validTo: (x["valid_to"] as string | null) ?? null,
-    })),
-  }));
+    accountNumber: current?.value ?? null,
+    identifiers,
+    };
+  });
+}
+
+/** Validated account number from a request body field, or undefined if absent. */
+function accountNumberField(o: Json, required: boolean): string | null | undefined {
+  const v = o["accountNumber"];
+  if (v === undefined && !required) return undefined;
+  if (v === null || (typeof v === "string" && v.trim() === "")) return null;
+  if (typeof v !== "string") throw badRequest("accountNumber must be a string or null.");
+  try {
+    return normalizeAccountNumber(v);
+  } catch (e) {
+    throw badRequest((e as Error).message);
+  }
 }
 
 function optDate(o: Json, k: string): string | undefined {
@@ -111,6 +137,7 @@ export function registerReferenceRoutes(app: FastifyInstance, ctx: ApiContext): 
     const openedOn = optDate(o, "openedOn");
     const closedOn = optDate(o, "closedOn");
     const cadence = optEnum(o, "statementCadence", ["monthly", "quarterly", "semiannual", "annual", "irregular"] as const);
+    const accountNumber = accountNumberField(o, false);
     const id = insertAccount(db, ctx.now, {
       institutionId,
       displayName: reqStr(o, "displayName").trim(),
@@ -122,7 +149,15 @@ export function registerReferenceRoutes(app: FastifyInstance, ctx: ApiContext): 
       ...(closedOn !== undefined ? { closedOn } : {}),
       ...(cadence !== undefined ? { statementCadence: cadence } : {}),
     });
+    if (accountNumber) setAccountNumber(db, ctx.now, id, accountNumber);
     return reply.code(201).send(loadAccounts(ctx, id)[0]);
+  });
+
+  app.put("/api/accounts/:id/account-number", async (req) => {
+    const accountId = idParam(req);
+    if (!db.prepare("SELECT 1 FROM accounts WHERE id = ?").get(accountId)) throw notFound("Account");
+    setAccountNumber(db, ctx.now, accountId, accountNumberField(jsonBody(req), true) ?? null);
+    return loadAccounts(ctx, accountId)[0];
   });
 
   app.post("/api/accounts/:id/identifiers", async (req, reply) => {

@@ -32,6 +32,50 @@ export function insertAccountIdentifier(db: DatabaseSync, i: NewAccountIdentifie
   return Number(r.lastInsertRowid);
 }
 
+export const ACCOUNT_NUMBER_KIND = "account_number";
+
+/** Trim and collapse spaces; account numbers may hold letters (IBAN), digits, spaces, - / . */
+export function normalizeAccountNumber(raw: string): string {
+  const v = raw.trim().replace(/\s+/g, " ");
+  if (v === "" || v.length > 64 || !/^[A-Za-z0-9 ./-]+$/.test(v)) {
+    throw new Error("An account number may contain letters, digits, spaces, '-', '/' and '.', up to 64 characters.");
+  }
+  return v;
+}
+
+/**
+ * Set an account's current number (or clear it with null). The previous number is
+ * kept as history: its valid_to becomes today, and the new one is valid from today.
+ * Setting the same number again changes nothing.
+ */
+export function setAccountNumber(db: DatabaseSync, clock: Clock, accountId: number, value: string | null): void {
+  const next = value === null ? null : normalizeAccountNumber(value);
+  const current = db
+    .prepare(
+      "SELECT id, value FROM account_identifiers WHERE account_id = ? AND kind = ? AND valid_to IS NULL ORDER BY id DESC LIMIT 1",
+    )
+    .get(accountId, ACCOUNT_NUMBER_KIND) as { id: number; value: string } | undefined;
+  if ((current?.value ?? null) === next) return;
+  const today = iso(clock).slice(0, 10);
+  db.exec("BEGIN");
+  try {
+    if (current) db.prepare("UPDATE account_identifiers SET valid_to = ? WHERE id = ?").run(today, current.id);
+    if (next !== null) {
+      insertAccountIdentifier(db, {
+        accountId,
+        kind: ACCOUNT_NUMBER_KIND,
+        value: next,
+        // The first number recorded is the account's number from the start.
+        ...(current ? { validFrom: today } : {}),
+      });
+    }
+    db.exec("COMMIT");
+  } catch (e) {
+    db.exec("ROLLBACK");
+    throw e;
+  }
+}
+
 export interface NewInstitution {
   name: string;
   country: string;

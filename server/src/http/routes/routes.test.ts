@@ -245,6 +245,60 @@ describe("full flow", () => {
   });
 });
 
+describe("account numbers", () => {
+  async function account(body: Record<string, unknown> = {}) {
+    await choosePerson();
+    const inst = (await call("POST", "/api/institutions", { name: "Example Bank", country: "US" })).json();
+    return call("POST", "/api/accounts", { institutionId: inst.id, displayName: "Checking", nativeCurrency: "USD", ...body });
+  }
+  const put = (id: number, accountNumber: unknown) =>
+    app.inject({
+      method: "PUT",
+      url: `/api/accounts/${id}/account-number`,
+      headers: { host: HOST, cookie, "x-finshark-csrf": csrf, "content-type": "application/json" },
+      payload: JSON.stringify({ accountNumber }),
+    });
+
+  it("is set at creation and normalized", async () => {
+    const res = await account({ accountNumber: "  12-345  678 " });
+    expect(res.statusCode).toBe(201);
+    expect(res.json()).toMatchObject({
+      accountNumber: "12-345 678",
+      identifiers: [{ kind: "account_number", value: "12-345 678", validFrom: null, validTo: null }],
+    });
+  });
+
+  it("keeps the previous number as history when it changes", async () => {
+    const id = (await account({ accountNumber: "111" })).json().id as number;
+    const changed = await put(id, "222");
+    expect(changed.statusCode).toBe(200);
+    const today = v.now().toISOString().slice(0, 10);
+    expect(changed.json().accountNumber).toBe("222");
+    expect(changed.json().identifiers).toMatchObject([
+      { kind: "account_number", value: "111", validFrom: null, validTo: today },
+      { kind: "account_number", value: "222", validFrom: today, validTo: null },
+    ]);
+    // Same number again changes nothing; null clears the current number but keeps history.
+    expect((await put(id, "222")).json().identifiers).toHaveLength(2);
+    const cleared = (await put(id, null)).json();
+    expect(cleared.accountNumber).toBeNull();
+    expect(cleared.identifiers).toHaveLength(2);
+  });
+
+  it("rejects invalid numbers and unknown accounts", async () => {
+    expect((await account({ accountNumber: "12;DROP" })).statusCode).toBe(400);
+    const id = (await account()).json().id as number;
+    expect((await put(id, "x".repeat(65))).statusCode).toBe(400);
+    expect((await put(id, 12345)).statusCode).toBe(400);
+    expect((await put(9999, "123")).statusCode).toBe(404);
+  });
+
+  it("requires a chosen person", async () => {
+    const inst = (await call("POST", "/api/institutions", { name: "X", country: "US" })).statusCode;
+    expect(inst).toBe(409);
+  });
+});
+
 describe("uploads", () => {
   it("reports an exact duplicate, and possible duplicates/revisions", async () => {
     await choosePerson();

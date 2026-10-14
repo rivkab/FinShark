@@ -1,5 +1,13 @@
 import { useState } from "react";
-import type { AccountDto, AccountIdentifierDto, CreateAccountRequest, CreateInstitutionRequest, InstitutionDto, Language } from "@finshark/shared";
+import type {
+  AccountDto,
+  AccountIdentifierDto,
+  CreateAccountRequest,
+  CreateInstitutionRequest,
+  InstitutionDto,
+  Language,
+  SetAccountNumberRequest,
+} from "@finshark/shared";
 import { apiFetch, errorText } from "./api.ts";
 import { useActor, useRefData } from "./context.tsx";
 import { buildAttestationRequest, validateAttestation, type AttestationForm } from "./factForm.ts";
@@ -39,7 +47,7 @@ export function AccountsPage() {
       ) : (
         <table className="data">
           <thead>
-            <tr><th>Account</th><th>Institution</th><th>Country</th><th>Currency</th><th>Identifiers</th><th>Dates</th><th /></tr>
+            <tr><th>Account</th><th>Institution</th><th>Account number</th><th>Country</th><th>Currency</th><th>Other identifiers</th><th>Dates</th><th /></tr>
           </thead>
           <tbody>
             {accounts.map((a) => (
@@ -53,16 +61,63 @@ export function AccountsPage() {
   );
 }
 
+/** Identifiers other than the current account number, including past account numbers. */
 function Identifiers({ list }: { list: AccountIdentifierDto[] }) {
+  const others = list.filter((i) => !(i.kind === "account_number" && i.validTo === null));
   return (
     <>
-      {list.map((i) => (
+      {others.map((i) => (
         <div key={i.id}>
-          {i.kind === "last4" ? "ending " : `${i.kind} `}
+          {i.kind === "last4" ? "ending " : i.kind === "account_number" ? "previous number " : `${i.kind} `}
           <Value>{i.value}</Value>
+          {i.kind === "account_number" && i.validTo && <span className="muted"> (until <Value>{i.validTo}</Value>)</span>}
         </div>
       ))}
     </>
+  );
+}
+
+function AccountNumber({ account }: { account: AccountDto }) {
+  const { reload } = useRefData();
+  const { mutate } = useActor();
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(account.accountNumber ?? "");
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const save = async () => {
+    const body: SetAccountNumberRequest = { accountNumber: value.trim() === "" ? null : value.trim() };
+    setBusy(true);
+    try {
+      await mutate(() => apiFetch<AccountDto>(`/api/accounts/${account.id}/account-number`, { method: "PUT", body }));
+      setError(null);
+      setEditing(false);
+      await reload();
+    } catch (e) {
+      setError(errorText(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (!editing) {
+    return (
+      <>
+        {account.accountNumber ? <Value>{account.accountNumber}</Value> : <span className="muted">none</span>}{" "}
+        <button type="button" onClick={() => { setValue(account.accountNumber ?? ""); setEditing(true); }}>
+          {account.accountNumber ? "Change" : "Add"}
+        </button>
+      </>
+    );
+  }
+  return (
+    <form onSubmit={(e) => { e.preventDefault(); void save(); }}>
+      <input type="text" dir="ltr" size={16} autoFocus value={value} onChange={(e) => setValue(e.target.value)} />{" "}
+      <button type="submit" disabled={busy}>Save</button>{" "}
+      <button type="button" onClick={() => { setEditing(false); setError(null); }}>Cancel</button>
+      {account.accountNumber && <div className="muted">The old number is kept in the account's history.</div>}
+      <ErrorNote>{error}</ErrorNote>
+    </form>
   );
 }
 
@@ -73,6 +128,7 @@ function AccountRow({ account: a }: { account: AccountDto }) {
       <tr>
         <Cell><AccountName account={a} /></Cell>
         <Cell><Text>{a.institutionName}</Text></Cell>
+        <td><AccountNumber account={a} /></td>
         <td>{a.country}</td>
         <td>{a.nativeCurrency}</td>
         <td><Identifiers list={a.identifiers} /></td>
@@ -87,7 +143,7 @@ function AccountRow({ account: a }: { account: AccountDto }) {
       </tr>
       {open && (
         <tr>
-          <td colSpan={7}>
+          <td colSpan={8}>
             <Attest account={a} onDone={() => setOpen(false)} />
           </td>
         </tr>
@@ -227,7 +283,7 @@ function AddAccount() {
   const [openedOn, setOpenedOn] = useState("");
   const [closedOn, setClosedOn] = useState("");
   const [cadence, setCadence] = useState("");
-  const [last4, setLast4] = useState("");
+  const [accountNumber, setAccountNumber] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -248,16 +304,14 @@ function AddAccount() {
       ...(openedOn ? { openedOn } : {}),
       ...(closedOn ? { closedOn } : {}),
       ...(cadence ? { statementCadence: cadence as NonNullable<CreateAccountRequest["statementCadence"]> } : {}),
+      ...(accountNumber.trim() ? { accountNumber: accountNumber.trim() } : {}),
     };
     setBusy(true);
     try {
-      const acct = await mutate(() => apiFetch<AccountDto>("/api/accounts", { method: "POST", body }));
-      if (last4.trim()) {
-        await mutate(() => apiFetch(`/api/accounts/${acct.id}/identifiers`, { method: "POST", body: { kind: "last4", value: last4.trim() } }));
-      }
+      await mutate(() => apiFetch<AccountDto>("/api/accounts", { method: "POST", body }));
       setDisplayName("");
       setAltName("");
-      setLast4("");
+      setAccountNumber("");
       setOpenedOn("");
       setClosedOn("");
       setError(null);
@@ -303,7 +357,7 @@ function AddAccount() {
             <option value="irregular">Irregular</option>
           </select>
         </label>
-        <label><span>Last 4 digits (optional)</span><input type="text" maxLength={4} size={5} value={last4} onChange={(e) => setLast4(e.target.value)} /></label>
+        <label><span>Account number (optional)</span><input type="text" dir="ltr" size={16} value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)} /></label>
       </div>
       <ErrorNote>{error}</ErrorNote>
       <div><button type="submit" disabled={busy}>Add account</button></div>

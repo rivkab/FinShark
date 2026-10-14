@@ -17,6 +17,7 @@
 //   GET  /api/accounts                       -> { accounts: AccountDto[] }
 //   POST /api/accounts        CreateAccountRequest       -> 201 AccountDto
 //   POST /api/accounts/:id/identifiers  AddIdentifierRequest -> 201 AccountDto
+//   PUT  /api/accounts/:id/account-number  SetAccountNumberRequest -> AccountDto
 //   GET  /api/concepts                       -> { concepts: ConceptDto[] }
 //   GET  /api/terms                          -> { taxonomies: TaxonomyDto[] }
 //   POST /api/documents       raw application/pdf body, header X-Filename (URI-encoded),
@@ -112,6 +113,9 @@ export interface AccountDto {
   openedOn: string | null;
   closedOn: string | null;
   statementCadence: string | null;
+  /** The current account number (identifier kind 'account_number'), or null. */
+  accountNumber: string | null;
+  /** All identifiers, including past account numbers with their validity dates. */
   identifiers: AccountIdentifierDto[];
 }
 export interface CreateAccountRequest {
@@ -126,6 +130,11 @@ export interface CreateAccountRequest {
   openedOn?: string;
   closedOn?: string;
   statementCadence?: "monthly" | "quarterly" | "semiannual" | "annual" | "irregular";
+  accountNumber?: string;
+}
+/** null clears the number. The previous number is kept as history. */
+export interface SetAccountNumberRequest {
+  accountNumber: string | null;
 }
 export interface AddIdentifierRequest {
   kind: string;
