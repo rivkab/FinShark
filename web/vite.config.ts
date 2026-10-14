@@ -4,7 +4,7 @@ import path from "node:path";
 import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 
-const serverPort = Number(process.env["FINSHARK_PORT"] ?? 8787);
+const serverPort = Number(process.env["FINSHARK_PORT"] ?? 4780);
 const target = `http://127.0.0.1:${serverPort}`;
 
 // pdf.js loads CMaps, standard fonts, ICC profiles and wasm helpers at runtime. They

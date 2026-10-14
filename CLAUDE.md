@@ -60,11 +60,16 @@ spikes/          throwaway experiments, not part of the app
 ## Commands
 
 ```
+FINSHARK_VAULT=~/FinShark-vault npm start   # use the app: builds web, serves it at http://127.0.0.1:4780
 npm test            # vitest, all workspaces
 npm run typecheck   # tsc -b
-npm run dev:server
-npm run dev:web
+npm run dev:server  # development: node --watch (restarts on source changes, new login token each time)
+npm run dev:web     # development: Vite dev server, proxies /api to the server on port 4780
 ```
+
+The server uses port 4780 by default. If it is taken, it falls back to a random free
+loopback port and says so. `FINSHARK_PORT=n` forces a port (error if unavailable; also
+read by `dev:web` for its proxy target).
 
 Use `nvm use` first if `node -v` isn't 24.
 
