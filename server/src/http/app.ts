@@ -68,8 +68,8 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   app.post("/api/session/person", async (req, reply) => {
     const body = req.body as { personId?: unknown } | null;
     const id = body?.personId;
-    if (typeof id !== "string" || id.length === 0 || id.length > 64) return reply.code(400).send({ error: "bad_person" });
-    if (deps.isValidPerson && !deps.isValidPerson(id)) return reply.code(400).send({ error: "unknown_person" });
+    if (typeof id !== "string" || id.length === 0 || id.length > 64) return reply.code(400).send({ error: "bad_person", message: "personId must be a non-empty string." });
+    if (deps.isValidPerson && !deps.isValidPerson(id)) return reply.code(400).send({ error: "unknown_person", message: "No such person." });
     req.session!.personId = id;
     return { personId: id };
   });

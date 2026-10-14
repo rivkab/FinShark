@@ -3,7 +3,7 @@ import * as pdfjs from "pdfjs-dist";
 import type { PDFDocumentProxy, RenderTask } from "pdfjs-dist";
 import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import { normalizeRect, pdfRectToViewport, viewportToPdfRect, type PdfRect, type ViewportRect, type ViewportTransform } from "@finshark/shared";
-import { textInBox, toTextBoxes, type PdfJsTextItemLike, type TextBox } from "./text-in-box.ts";
+import { textInBox, toTextBoxes, type PdfJsTextItemLike, type TextBox } from "@finshark/shared";
 
 // Worker and runtime assets are bundled locally; nothing is fetched from a CDN.
 pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
