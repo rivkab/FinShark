@@ -7,16 +7,22 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { existsSync } from "node:fs";
 import { buildServer } from "./http/server.ts";
-import { listenLoopback, LOOPBACK, pickFreePort } from "./http/listen.ts";
+import { choosePort, DEFAULT_PORT, isLoopbackPortFree, listenLoopback, LOOPBACK } from "./http/listen.ts";
 import { vaultLayout } from "./vault/layout.ts";
 import { createVault, openVault } from "./vault/vault.ts";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const vaultRoot = process.env["FINSHARK_VAULT"] ? path.resolve(process.env["FINSHARK_VAULT"]) : path.join(repoRoot, "dev-vault");
 
-const envPort = process.env["FINSHARK_PORT"];
-const port = envPort ? Number(envPort) : await pickFreePort();
-if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error(`Invalid FINSHARK_PORT: ${envPort}`);
+let chosen;
+try {
+  chosen = await choosePort({ envPort: process.env["FINSHARK_PORT"], preferred: DEFAULT_PORT, isFree: isLoopbackPortFree });
+} catch (e) {
+  console.error(e instanceof Error ? e.message : String(e));
+  process.exit(1);
+}
+const port = chosen.port;
+if (chosen.note) console.log(chosen.note);
 
 if (!existsSync(vaultLayout(vaultRoot).infoFile)) {
   createVault(vaultRoot, { now: new Date(), vaultId: randomUUID() });
@@ -60,7 +66,7 @@ try {
 }
 
 const link = `http://${LOOPBACK}:${port}/auth?token=${token}`;
-console.log(`FinShark is running. Open this link in your browser:\n\n  ${link}\n`);
+console.log(`FinShark is running at http://${LOOPBACK}:${port} — open this link to sign in:\n\n  ${link}\n`);
 if (!existsSync(webDist)) console.log("(web/dist not built; in development use the Vite dev server, `npm run dev:web`.)");
 
 if (process.env["FINSHARK_NO_OPEN"] !== "1" && process.platform === "darwin") {
