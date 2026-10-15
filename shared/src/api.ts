@@ -17,6 +17,7 @@
 //   GET  /api/accounts                       -> { accounts: AccountDto[] }
 //   POST /api/accounts        CreateAccountRequest       -> 201 AccountDto
 //   POST /api/accounts/:id/identifiers  AddIdentifierRequest -> 201 AccountDto
+//   PUT  /api/accounts/:id/name            SetAccountNameRequest -> AccountDto
 //   PUT  /api/accounts/:id/account-number  SetAccountNumberRequest -> AccountDto
 //   PUT  /api/accounts/:id/owners           SetAccountOwnersRequest -> AccountDto
 //   GET  /api/concepts                       -> { concepts: ConceptDto[] }
@@ -153,6 +154,14 @@ export interface CreateAccountRequest {
 /** Replaces the current owners (at least one). Owners removed keep their history. */
 export interface SetAccountOwnersRequest {
   owners: AccountOwnerInput[];
+}
+/**
+ * Renames the account. Documents and facts refer to the account by id, so nothing else changes.
+ * altName (the name in the other language): omitted keeps it, null or blank clears it.
+ */
+export interface SetAccountNameRequest {
+  displayName: string;
+  altName?: string | null;
 }
 /** null clears the number. The previous number is kept as history. */
 export interface SetAccountNumberRequest {

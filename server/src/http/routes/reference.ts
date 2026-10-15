@@ -206,6 +206,24 @@ export function registerReferenceRoutes(app: FastifyInstance, ctx: ApiContext): 
     return reply.code(201).send(loadAccounts(ctx, id)[0]);
   });
 
+  app.put("/api/accounts/:id/name", async (req) => {
+    const accountId = idParam(req);
+    if (!db.prepare("SELECT 1 FROM accounts WHERE id = ?").get(accountId)) throw notFound("Account");
+    const o = jsonBody(req);
+    const displayName = reqStr(o, "displayName").trim();
+    if (displayName === "") throw badRequest("displayName must not be empty.");
+    // altName: absent keeps the current one; null or blank clears it.
+    const rawAlt = o["altName"];
+    if (rawAlt !== undefined && rawAlt !== null && typeof rawAlt !== "string") throw badRequest("altName must be a string or null.");
+    if (rawAlt === undefined) {
+      db.prepare("UPDATE accounts SET display_name = ? WHERE id = ?").run(displayName, accountId);
+    } else {
+      const altName = rawAlt === null || rawAlt.trim() === "" ? null : rawAlt.trim();
+      db.prepare("UPDATE accounts SET display_name = ?, alt_name = ? WHERE id = ?").run(displayName, altName, accountId);
+    }
+    return loadAccounts(ctx, accountId)[0];
+  });
+
   app.put("/api/accounts/:id/account-number", async (req) => {
     const accountId = idParam(req);
     if (!db.prepare("SELECT 1 FROM accounts WHERE id = ?").get(accountId)) throw notFound("Account");

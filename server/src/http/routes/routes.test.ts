@@ -349,6 +349,46 @@ describe("account numbers", () => {
     });
   });
 
+  it("renames an account without touching its number", async () => {
+    const id = (await account({ accountNumber: "111" })).json().id as number;
+    const res = await app.inject({
+      method: "PUT",
+      url: `/api/accounts/${id}/name`,
+      headers: { host: HOST, cookie, "x-finshark-csrf": csrf, "content-type": "application/json" },
+      payload: JSON.stringify({ displayName: "  Joint Checking " }),
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({ displayName: "Joint Checking", accountNumber: "111" });
+    const withAlt = await app.inject({
+      method: "PUT",
+      url: `/api/accounts/${id}/name`,
+      headers: { host: HOST, cookie, "x-finshark-csrf": csrf, "content-type": "application/json" },
+      payload: JSON.stringify({ displayName: "Joint Checking", altName: " חשבון עו״ש " }),
+    });
+    expect(withAlt.json()).toMatchObject({ displayName: "Joint Checking", altName: "חשבון עו״ש" });
+    const kept = await app.inject({
+      method: "PUT",
+      url: `/api/accounts/${id}/name`,
+      headers: { host: HOST, cookie, "x-finshark-csrf": csrf, "content-type": "application/json" },
+      payload: JSON.stringify({ displayName: "Checking 2" }),
+    });
+    expect(kept.json()).toMatchObject({ displayName: "Checking 2", altName: "חשבון עו״ש" });
+    const cleared = await app.inject({
+      method: "PUT",
+      url: `/api/accounts/${id}/name`,
+      headers: { host: HOST, cookie, "x-finshark-csrf": csrf, "content-type": "application/json" },
+      payload: JSON.stringify({ displayName: "Checking 2", altName: null }),
+    });
+    expect(cleared.json().altName).toBeNull();
+    const blank = await app.inject({
+      method: "PUT",
+      url: `/api/accounts/${id}/name`,
+      headers: { host: HOST, cookie, "x-finshark-csrf": csrf, "content-type": "application/json" },
+      payload: JSON.stringify({ displayName: "   " }),
+    });
+    expect(blank.statusCode).toBe(400);
+  });
+
   it("keeps the previous number as history when it changes", async () => {
     const id = (await account({ accountNumber: "111" })).json().id as number;
     const changed = await put(id, "222");

@@ -6,6 +6,7 @@ import type {
   CreateInstitutionRequest,
   InstitutionDto,
   Language,
+  SetAccountNameRequest,
   SetAccountNumberRequest,
   SetAccountOwnersRequest,
 } from "@finshark/shared";
@@ -98,117 +99,106 @@ function OwnerPicker({ selected, onChange }: { selected: number[]; onChange: (id
   );
 }
 
-function Owners({ account }: { account: AccountDto }) {
-  const { people, reload } = useRefData();
-  const { mutate } = useActor();
-  const [editing, setEditing] = useState(false);
-  const [selected, setSelected] = useState<number[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-
-  const save = async () => {
-    if (selected.length === 0) return setError("Choose at least one owner.");
-    // Keep role and share of owners that stay; new ones are plain owners.
-    const body: SetAccountOwnersRequest = {
-      owners: selected.map((personId) => {
-        const existing = account.owners.find((o) => o.personId === personId);
-        return { personId, role: existing?.role ?? "owner", share: existing?.share ?? null };
-      }),
-    };
-    setBusy(true);
-    try {
-      await mutate(() => apiFetch<AccountDto>(`/api/accounts/${account.id}/owners`, { method: "PUT", body }));
-      setError(null);
-      setEditing(false);
-      await reload();
-    } catch (e) {
-      setError(errorText(e));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  if (!editing) {
-    return (
-      <>
-        {account.owners.length === 0 && <div className="muted">none recorded</div>}
-        {account.owners.map((o) => (
-          <div key={`${o.personId}-${o.role}`}>
-            <Text>{people.find((p) => p.id === o.personId)?.displayName ?? `#${o.personId}`}</Text>
-            {o.role !== "owner" && <span className="muted"> ({o.role})</span>}
-            {o.share && <span className="muted"> <Value>{o.share}</Value></span>}
-          </div>
-        ))}
-        <button type="button" onClick={() => { setSelected(account.owners.map((o) => o.personId)); setEditing(true); }}>
-          {account.owners.length === 0 ? "Add" : "Change"}
-        </button>
-      </>
-    );
-  }
+function OwnersView({ account }: { account: AccountDto }) {
+  const { people } = useRefData();
   return (
-    <form onSubmit={(e) => { e.preventDefault(); void save(); }}>
-      <OwnerPicker selected={selected} onChange={setSelected} />
-      <button type="submit" disabled={busy}>Save</button>{" "}
-      <button type="button" onClick={() => { setEditing(false); setError(null); }}>Cancel</button>
-      {account.owners.length > 0 && <div className="muted">Previous owners are kept in the account's history.</div>}
-      <ErrorNote>{error}</ErrorNote>
-    </form>
-  );
-}
-
-function AccountNumber({ account }: { account: AccountDto }) {
-  const { reload } = useRefData();
-  const { mutate } = useActor();
-  const [editing, setEditing] = useState(false);
-  const [value, setValue] = useState(account.accountNumber ?? "");
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-
-  const save = async () => {
-    const body: SetAccountNumberRequest = { accountNumber: value.trim() === "" ? null : value.trim() };
-    setBusy(true);
-    try {
-      await mutate(() => apiFetch<AccountDto>(`/api/accounts/${account.id}/account-number`, { method: "PUT", body }));
-      setError(null);
-      setEditing(false);
-      await reload();
-    } catch (e) {
-      setError(errorText(e));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  if (!editing) {
-    return (
-      <>
-        {account.accountNumber ? <Value>{account.accountNumber}</Value> : <span className="muted">none</span>}{" "}
-        <button type="button" onClick={() => { setValue(account.accountNumber ?? ""); setEditing(true); }}>
-          {account.accountNumber ? "Change" : "Add"}
-        </button>
-      </>
-    );
-  }
-  return (
-    <form onSubmit={(e) => { e.preventDefault(); void save(); }}>
-      <input type="text" dir="ltr" size={16} autoFocus value={value} onChange={(e) => setValue(e.target.value)} />{" "}
-      <button type="submit" disabled={busy}>Save</button>{" "}
-      <button type="button" onClick={() => { setEditing(false); setError(null); }}>Cancel</button>
-      {account.accountNumber && <div className="muted">The old number is kept in the account's history.</div>}
-      <ErrorNote>{error}</ErrorNote>
-    </form>
+    <>
+      {account.owners.length === 0 && <div className="muted">none recorded</div>}
+      {account.owners.map((o) => (
+        <div key={`${o.personId}-${o.role}`}>
+          <Text>{people.find((p) => p.id === o.personId)?.displayName ?? `#${o.personId}`}</Text>
+          {o.role !== "owner" && <span className="muted"> ({o.role})</span>}
+          {o.share && <span className="muted"> <Value>{o.share}</Value></span>}
+        </div>
+      ))}
+    </>
   );
 }
 
 function AccountRow({ account: a }: { account: AccountDto }) {
+  const { reload } = useRefData();
+  const { mutate } = useActor();
   const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [selected, setSelected] = useState<number[]>([]);
+  const [number, setNumber] = useState("");
+  const [name, setName] = useState("");
+  const [altName, setAltName] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const startEdit = () => {
+    setSelected(a.owners.map((o) => o.personId));
+    setNumber(a.accountNumber ?? "");
+    setName(a.displayName);
+    setAltName(a.altName ?? "");
+    setError(null);
+    setOpen(false);
+    setEditing(true);
+  };
+
+  const save = async () => {
+    const newName = name.trim();
+    if (newName === "") return setError("Enter the account's name.");
+    if (selected.length === 0) return setError("Choose at least one owner.");
+    const newNumber = number.trim() === "" ? null : number.trim();
+    const ownersChanged =
+      selected.length !== a.owners.length || a.owners.some((o) => !selected.includes(o.personId));
+    const numberChanged = newNumber !== (a.accountNumber ?? null);
+    setBusy(true);
+    try {
+      const newAlt = altName.trim() === "" ? null : altName.trim();
+      if (newName !== a.displayName || newAlt !== (a.altName ?? null)) {
+        const body: SetAccountNameRequest = { displayName: newName, altName: newAlt };
+        await mutate(() => apiFetch<AccountDto>(`/api/accounts/${a.id}/name`, { method: "PUT", body }));
+      }
+      if (ownersChanged) {
+        // Keep role and share of owners that stay; new ones are plain owners.
+        const body: SetAccountOwnersRequest = {
+          owners: selected.map((personId) => {
+            const existing = a.owners.find((o) => o.personId === personId);
+            return { personId, role: existing?.role ?? "owner", share: existing?.share ?? null };
+          }),
+        };
+        await mutate(() => apiFetch<AccountDto>(`/api/accounts/${a.id}/owners`, { method: "PUT", body }));
+      }
+      if (numberChanged) {
+        const body: SetAccountNumberRequest = { accountNumber: newNumber };
+        await mutate(() => apiFetch<AccountDto>(`/api/accounts/${a.id}/account-number`, { method: "PUT", body }));
+      }
+      setError(null);
+      setEditing(false);
+      await reload();
+    } catch (e) {
+      setError(errorText(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const cancel = () => { setEditing(false); setError(null); };
+
   return (
     <>
       <tr>
-        <Cell><AccountName account={a} /></Cell>
+        {editing ? (
+          <td>
+            <label><span className="muted">Name</span><input type="text" dir="auto" value={name} onChange={(e) => setName(e.target.value)} /></label>
+            <label><span className="muted">Name in the other language (optional)</span><input type="text" dir="auto" value={altName} onChange={(e) => setAltName(e.target.value)} /></label>
+          </td>
+        ) : (
+          <Cell><AccountName account={a} /></Cell>
+        )}
         <Cell><Text>{a.institutionName}</Text></Cell>
-        <td><Owners account={a} /></td>
-        <td><AccountNumber account={a} /></td>
+        <td>{editing ? <OwnerPicker selected={selected} onChange={setSelected} /> : <OwnersView account={a} />}</td>
+        <td>
+          {editing ? (
+            <>
+              <input type="text" dir="ltr" size={16} value={number} onChange={(e) => setNumber(e.target.value)} />
+              {a.accountNumber && <div className="muted">The old number is kept in the account's history.</div>}
+            </>
+          ) : a.accountNumber ? <Value>{a.accountNumber}</Value> : <span className="muted">none</span>}
+        </td>
         <td>{a.country}</td>
         <td>{a.nativeCurrency}</td>
         <td><Identifiers list={a.identifiers} /></td>
@@ -218,7 +208,18 @@ function AccountRow({ account: a }: { account: AccountDto }) {
           {a.statementCadence && <div className="muted">{a.statementCadence}</div>}
         </td>
         <td>
-          <button onClick={() => setOpen(!open)}>{open ? "Cancel" : "Record a statement without a document"}</button>
+          {editing ? (
+            <>
+              <button type="button" onClick={() => void save()} disabled={busy}>Save</button>{" "}
+              <button type="button" onClick={cancel} disabled={busy}>Cancel</button>
+              <ErrorNote>{error}</ErrorNote>
+            </>
+          ) : (
+            <>
+              <button type="button" onClick={startEdit}>Edit</button>{" "}
+              <button type="button" onClick={() => setOpen(!open)}>{open ? "Cancel" : "Record a statement without a document"}</button>
+            </>
+          )}
         </td>
       </tr>
       {open && (
