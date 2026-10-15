@@ -152,8 +152,7 @@ function Reviewer({
       if (a === "verify") l.verify();
       else if (a === "correct") l.startCorrect();
       else if (a === "reject") l.startReject();
-      else if (a === "next") l.go(l.index + 1);
-      else l.go(l.index - 1);
+      else l.go(l.index + 1);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -167,7 +166,6 @@ function Reviewer({
           You have reached the end of the list. {pending > 0 ? `${pending} still waiting (skipped).` : "Everything in this list has been dealt with."}
         </p>
         <p>
-          <button onClick={() => go(items.length - 1)}>Back</button>{" "}
           <button onClick={() => void restart()}>Reload the list</button>
         </p>
       </section>
@@ -186,7 +184,6 @@ function Reviewer({
         <strong className="progress">{index + 1} of {items.length}</strong>
         <span className="muted"> {pending} waiting</span>
         <span className="spacer" />
-        <button onClick={() => go(index - 1)} disabled={index === 0}>Back (←)</button>
         <button onClick={() => go(index + 1)}>Skip (→)</button>
       </div>
 
@@ -232,7 +229,7 @@ function Reviewer({
                 <button onClick={startReject} disabled={busy}>Reject <kbd>R</kbd></button>
               </p>
             )}
-            {mode === "idle" && <p className="muted small">Keys: V verify, C correct, R reject, → or J skip, ← or K back.</p>}
+            {mode === "idle" && <p className="muted small">Keys: V verify, C correct, R reject, → or J skip.</p>}
 
             {mode === "reject" && (
               <form onSubmit={(e) => { e.preventDefault(); submitReject(); }} className="fields">

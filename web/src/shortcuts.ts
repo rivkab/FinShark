@@ -11,7 +11,7 @@ export function isTypingTarget(t: KeyTarget | null | undefined): boolean {
   return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || t.isContentEditable === true;
 }
 
-export type ReviewAction = "verify" | "correct" | "reject" | "next" | "prev";
+export type ReviewAction = "verify" | "correct" | "reject" | "next";
 
 export interface KeyLike {
   key: string;
@@ -29,7 +29,6 @@ export function reviewShortcut(e: KeyLike): ReviewAction | null {
     case "c": case "C": return "correct";
     case "r": case "R": return "reject";
     case "ArrowRight": case "j": case "J": return "next";
-    case "ArrowLeft": case "k": case "K": return "prev";
     default: return null;
   }
 }

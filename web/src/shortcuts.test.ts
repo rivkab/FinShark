@@ -23,8 +23,9 @@ describe("reviewShortcut", () => {
     expect(k("r")).toBe("reject");
     expect(k("ArrowRight")).toBe("next");
     expect(k("j")).toBe("next");
-    expect(k("ArrowLeft")).toBe("prev");
-    expect(k("k")).toBe("prev");
+    // Review only moves forward: there is no "previous" shortcut.
+    expect(k("ArrowLeft")).toBeNull();
+    expect(k("k")).toBeNull();
     expect(k("x")).toBeNull();
   });
   it("never fires while typing", () => {
