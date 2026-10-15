@@ -84,7 +84,7 @@ function OwnerPicker({ selected, onChange }: { selected: number[]; onChange: (id
   const { people } = useRefData();
   if (people.length === 0) return <p className="muted">Add a person first (People page); every account needs an owner.</p>;
   return (
-    <div>
+    <div className="owner-picker">
       {people.map((p) => (
         <label key={p.id} className="inline">
           <input
@@ -445,7 +445,7 @@ function AddAccount() {
         <label><span>Account number</span><input type="text" dir="ltr" size={16} value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)} /></label>
       </div>
       <div>
-        <span>Owner(s)</span>
+        <span className="label">Owner(s)</span>
         <OwnerPicker selected={ownerIds} onChange={setOwnerIds} />
       </div>
       <ErrorNote>{error}</ErrorNote>
