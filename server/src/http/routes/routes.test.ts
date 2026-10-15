@@ -319,6 +319,30 @@ describe("account owners", () => {
   });
 });
 
+describe("account types", () => {
+  const hdrs = () => ({ host: HOST, cookie, "x-finshark-csrf": csrf, "content-type": "application/json" });
+  it("is set at creation, changed, cleared and validated", async () => {
+    await choosePerson();
+    const inst = (await call("POST", "/api/institutions", { name: "Type Bank", country: "US" })).json();
+    const made = await call("POST", "/api/accounts", {
+      institutionId: inst.id, displayName: "Main", nativeCurrency: "USD", owners: [{ personId: 1 }], accountType: "checking",
+    });
+    expect(made.statusCode).toBe(201);
+    expect(made.json().accountType).toBe("checking");
+    const id = made.json().id as number;
+    const put = (body: unknown) =>
+      app.inject({ method: "PUT", url: `/api/accounts/${id}/type`, headers: hdrs(), payload: JSON.stringify(body) });
+    expect((await put({ accountType: "pension" })).json().accountType).toBe("pension");
+    expect((await put({ accountType: null })).json().accountType).toBeNull();
+    expect((await put({ accountType: "piggy_bank" })).statusCode).toBe(400);
+    expect((await put({})).statusCode).toBe(400);
+    const bad = await call("POST", "/api/accounts", {
+      institutionId: inst.id, displayName: "X", nativeCurrency: "USD", owners: [{ personId: 1 }], accountType: "nope",
+    });
+    expect(bad.statusCode).toBe(400);
+  });
+});
+
 describe("account numbers", () => {
   beforeEach(() => {
     chosen = false;

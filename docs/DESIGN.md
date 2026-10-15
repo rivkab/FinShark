@@ -148,7 +148,7 @@ location, and marks the old one `superseded`. Both remain forever.
 people              id, display_name, ...
 institutions        id, name, country, metadata(json)
 accounts            id, institution_id, display_name, country, native_currency,
-                    opened_on, closed_on, statement_cadence, metadata(json)
+                    account_type, opened_on, closed_on, statement_cadence, metadata(json)
 account_identifiers account_id, kind (last4 | full_hash | iban | policy_no | ...),
                     value, valid_from, valid_to
 account_owners      account_id, person_id, role (owner | joint | custodian |
@@ -965,3 +965,17 @@ the current set and refuses an empty one; owners who drop out keep their row wit
 `valid_to` set to today, so history is preserved. The "at least one" rule is enforced
 in the API, not the schema, because accounts created before this decision have no owner
 rows; they show as "none recorded" and can be fixed from the Accounts page.
+
+### D10. Accounts have a descriptive type (2026-10-15)
+
+`accounts.account_type` says what kind of product an account is: checking, savings,
+fixed deposit, investment, pension, provident fund, keren hishtalmut, credit card, loan,
+mortgage, insurance or other. The list is `ACCOUNT_TYPES` in `shared/src/api.ts`. It is
+validated by the API, not a CHECK, so adding a value needs no table rebuild, and it is
+nullable because earlier accounts have none. The Add account form requires a type;
+existing accounts can be given one with Edit (`PUT /api/accounts/:id/type`).
+
+It is a label, not a classification. Whether something is retirement savings, or how
+it is taxed or counted for aid, stays in taxonomies (C5); queries should not infer
+those from the type. "Pension" and "keren hishtalmut" say what the product is, not how a
+filing treats it.

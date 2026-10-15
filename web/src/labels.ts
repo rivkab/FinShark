@@ -1,5 +1,21 @@
 // Label and picker helpers (DESIGN §14 D3). Pure functions, unit-tested.
-import type { AccountDto, ConceptDto, Language } from "@finshark/shared";
+import type { AccountDto, AccountType, ConceptDto, Language } from "@finshark/shared";
+
+/** English label for an account type (UI chrome is English, DESIGN D3). */
+export const ACCOUNT_TYPE_LABEL: Readonly<Record<AccountType, string>> = {
+  checking: "Checking",
+  savings: "Savings",
+  deposit: "Fixed deposit / CD",
+  investment: "Investment / brokerage",
+  pension: "Pension",
+  provident_fund: "Provident fund (kupat gemel)",
+  keren_hishtalmut: "Keren hishtalmut",
+  credit_card: "Credit card",
+  loan: "Loan",
+  mortgage: "Mortgage",
+  insurance: "Insurance",
+  other: "Other",
+};
 
 /** Hebrew label when the surrounding context is Hebrew and a Hebrew label exists, otherwise English. */
 export function pickLabel(en: string, he: string | null | undefined, lang: Language | null | undefined): string {

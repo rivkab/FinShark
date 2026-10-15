@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { ACCOUNT_TYPES, type AccountType } from "@finshark/shared";
 import type {
   AccountDto,
   AccountIdentifierDto,
@@ -8,12 +9,13 @@ import type {
   Language,
   SetAccountNameRequest,
   SetAccountNumberRequest,
+  SetAccountTypeRequest,
   SetAccountOwnersRequest,
 } from "@finshark/shared";
 import { apiFetch, errorText } from "./api.ts";
 import { useActor, useRefData } from "./context.tsx";
 import { buildAttestationRequest, validateAttestation, type AttestationForm } from "./factForm.ts";
-import { currencyForCountry, languageForCountry } from "./labels.ts";
+import { ACCOUNT_TYPE_LABEL, currencyForCountry, languageForCountry } from "./labels.ts";
 import { Cell, Text, Value } from "./Value.tsx";
 import { ErrorNote, InstitutionName, AccountName, langLabel } from "./ui.tsx";
 
@@ -49,7 +51,7 @@ export function AccountsPage() {
       ) : (
         <table className="data">
           <thead>
-            <tr><th>Account</th><th>Institution</th><th>Owners</th><th>Account number</th><th>Country</th><th>Currency</th><th>Other identifiers</th><th>Dates</th><th /></tr>
+            <tr><th>Account</th><th>Institution</th><th>Type</th><th>Owners</th><th>Account number</th><th>Country</th><th>Currency</th><th>Other identifiers</th><th>Dates</th><th /></tr>
           </thead>
           <tbody>
             {accounts.map((a) => (
@@ -123,6 +125,7 @@ function AccountRow({ account: a }: { account: AccountDto }) {
   const [selected, setSelected] = useState<number[]>([]);
   const [number, setNumber] = useState("");
   const [name, setName] = useState("");
+  const [type, setType] = useState("");
   const [altName, setAltName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -131,6 +134,7 @@ function AccountRow({ account: a }: { account: AccountDto }) {
     setSelected(a.owners.map((o) => o.personId));
     setNumber(a.accountNumber ?? "");
     setName(a.displayName);
+    setType(a.accountType ?? "");
     setAltName(a.altName ?? "");
     setError(null);
     setOpen(false);
@@ -151,6 +155,10 @@ function AccountRow({ account: a }: { account: AccountDto }) {
       if (newName !== a.displayName || newAlt !== (a.altName ?? null)) {
         const body: SetAccountNameRequest = { displayName: newName, altName: newAlt };
         await mutate(() => apiFetch<AccountDto>(`/api/accounts/${a.id}/name`, { method: "PUT", body }));
+      }
+      if (type !== (a.accountType ?? "")) {
+        const body: SetAccountTypeRequest = { accountType: type === "" ? null : (type as AccountType) };
+        await mutate(() => apiFetch<AccountDto>(`/api/accounts/${a.id}/type`, { method: "PUT", body }));
       }
       if (ownersChanged) {
         // Keep role and share of owners that stay; new ones are plain owners.
@@ -190,6 +198,14 @@ function AccountRow({ account: a }: { account: AccountDto }) {
           <Cell><AccountName account={a} /></Cell>
         )}
         <Cell><Text>{a.institutionName}</Text></Cell>
+        <td>
+          {editing ? (
+            <select value={type} onChange={(e) => setType(e.target.value)}>
+              <option value="">Not set</option>
+              {ACCOUNT_TYPES.map((t) => <option key={t} value={t}>{ACCOUNT_TYPE_LABEL[t]}</option>)}
+            </select>
+          ) : a.accountType ? ACCOUNT_TYPE_LABEL[a.accountType] : <span className="muted">not set</span>}
+        </td>
         <td>{editing ? <OwnerPicker selected={selected} onChange={setSelected} /> : <OwnersView account={a} />}</td>
         <td>
           {editing ? (
@@ -224,7 +240,7 @@ function AccountRow({ account: a }: { account: AccountDto }) {
       </tr>
       {open && (
         <tr>
-          <td colSpan={9}>
+          <td colSpan={10}>
             <Attest account={a} onDone={() => setOpen(false)} />
           </td>
         </tr>
@@ -366,6 +382,7 @@ function AddAccount() {
   const [closedOn, setClosedOn] = useState("");
   const [cadence, setCadence] = useState("");
   const [accountNumber, setAccountNumber] = useState("");
+  const [accountType, setAccountType] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -378,6 +395,7 @@ function AddAccount() {
   const submit = async () => {
     if (institutionId === "") return setError("Choose the institution.");
     if (displayName.trim() === "") return setError("Enter the account's name.");
+    if (accountType === "") return setError("Choose the account type.");
     if (accountNumber.trim() === "") return setError("Enter the account number.");
     if (ownerIds.length === 0) return setError("Choose at least one owner.");
     const body: CreateAccountRequest = {
@@ -389,6 +407,7 @@ function AddAccount() {
       ...(openedOn ? { openedOn } : {}),
       ...(closedOn ? { closedOn } : {}),
       ...(cadence ? { statementCadence: cadence as NonNullable<CreateAccountRequest["statementCadence"]> } : {}),
+      accountType: accountType as AccountType,
       ...(accountNumber.trim() ? { accountNumber: accountNumber.trim() } : {}),
     };
     setBusy(true);
@@ -397,6 +416,7 @@ function AddAccount() {
       setDisplayName("");
       setAltName("");
       setAccountNumber("");
+      setAccountType("");
       setOpenedOn("");
       setClosedOn("");
       setError(null);
@@ -422,6 +442,13 @@ function AddAccount() {
         <label className="grow"><span>Name in the other language (optional)</span><input type="text" dir="auto" value={altName} onChange={(e) => setAltName(e.target.value)} /></label>
       </div>
       <div className="row">
+        <label>
+          <span>Type</span>
+          <select value={accountType} onChange={(e) => setAccountType(e.target.value)}>
+            <option value="">Choose...</option>
+            {ACCOUNT_TYPES.map((t) => <option key={t} value={t}>{ACCOUNT_TYPE_LABEL[t]}</option>)}
+          </select>
+        </label>
         <label>
           <span>Currency</span>
           <select value={currency} onChange={(e) => setCurrency(e.target.value)}>

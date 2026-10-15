@@ -17,6 +17,7 @@
 //   GET  /api/accounts                       -> { accounts: AccountDto[] }
 //   POST /api/accounts        CreateAccountRequest       -> 201 AccountDto
 //   POST /api/accounts/:id/identifiers  AddIdentifierRequest -> 201 AccountDto
+//   PUT  /api/accounts/:id/type            SetAccountTypeRequest -> AccountDto
 //   PUT  /api/accounts/:id/name            SetAccountNameRequest -> AccountDto
 //   PUT  /api/accounts/:id/account-number  SetAccountNumberRequest -> AccountDto
 //   PUT  /api/accounts/:id/owners           SetAccountOwnersRequest -> AccountDto
@@ -110,6 +111,26 @@ export interface AccountOwnerDto {
   /** Decimal fraction like '0.5'; null when unspecified. */
   share: string | null;
 }
+/**
+ * What kind of product an account is. A descriptive label only: whether something
+ * counts as retirement savings, or how it is taxed, is a classification (DESIGN C5).
+ */
+export const ACCOUNT_TYPES = [
+  "checking",
+  "savings",
+  "deposit",
+  "investment",
+  "pension",
+  "provident_fund",
+  "keren_hishtalmut",
+  "credit_card",
+  "loan",
+  "mortgage",
+  "insurance",
+  "other",
+] as const;
+export type AccountType = (typeof ACCOUNT_TYPES)[number];
+
 export interface AccountDto {
   id: number;
   institutionId: number;
@@ -122,6 +143,8 @@ export interface AccountDto {
   openedOn: string | null;
   closedOn: string | null;
   statementCadence: string | null;
+  /** null for accounts created before types existed. */
+  accountType: AccountType | null;
   /** The current account number (identifier kind 'account_number'), or null. */
   accountNumber: string | null;
   /** All identifiers, including past account numbers with their validity dates. */
@@ -148,6 +171,7 @@ export interface CreateAccountRequest {
   closedOn?: string;
   statementCadence?: "monthly" | "quarterly" | "semiannual" | "annual" | "irregular";
   accountNumber?: string;
+  accountType?: AccountType;
   /** At least one. */
   owners: AccountOwnerInput[];
 }
@@ -162,6 +186,10 @@ export interface SetAccountOwnersRequest {
 export interface SetAccountNameRequest {
   displayName: string;
   altName?: string | null;
+}
+/** null clears the type. */
+export interface SetAccountTypeRequest {
+  accountType: AccountType | null;
 }
 /** null clears the number. The previous number is kept as history. */
 export interface SetAccountNumberRequest {

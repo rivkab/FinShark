@@ -2,9 +2,11 @@
 import type { FastifyInstance } from "fastify";
 import { Decimal } from "decimal.js";
 import {
+  ACCOUNT_TYPES,
   isKnownCurrency,
   type AccountDto,
   type AccountOwnerDto,
+  type AccountType,
   type ConceptDto,
   type InstitutionDto,
   type Language,
@@ -70,6 +72,7 @@ export function loadAccounts(ctx: ApiContext, onlyId?: number): AccountDto[] {
     openedOn: (r["opened_on"] as string | null) ?? null,
     closedOn: (r["closed_on"] as string | null) ?? null,
     statementCadence: (r["statement_cadence"] as string | null) ?? null,
+    accountType: (r["account_type"] as AccountType | null) ?? null,
     accountNumber: current?.value ?? null,
     identifiers,
     owners: (ownerRows.all(Number(r["id"])) as Row[]).map(
@@ -189,6 +192,7 @@ export function registerReferenceRoutes(app: FastifyInstance, ctx: ApiContext): 
     const closedOn = optDate(o, "closedOn");
     const cadence = optEnum(o, "statementCadence", ["monthly", "quarterly", "semiannual", "annual", "irregular"] as const);
     const accountNumber = accountNumberField(o, false);
+    const accountType = optEnum<AccountType>(o, "accountType", ACCOUNT_TYPES);
     const owners = ownersField(ctx, o);
     const id = insertAccount(db, ctx.now, {
       institutionId,
@@ -200,10 +204,22 @@ export function registerReferenceRoutes(app: FastifyInstance, ctx: ApiContext): 
       ...(openedOn !== undefined ? { openedOn } : {}),
       ...(closedOn !== undefined ? { closedOn } : {}),
       ...(cadence !== undefined ? { statementCadence: cadence } : {}),
+      ...(accountType !== undefined ? { accountType } : {}),
     });
     if (accountNumber) setAccountNumber(db, ctx.now, id, accountNumber);
     setAccountOwners(db, ctx.now, id, owners);
     return reply.code(201).send(loadAccounts(ctx, id)[0]);
+  });
+
+  app.put("/api/accounts/:id/type", async (req) => {
+    const accountId = idParam(req);
+    if (!db.prepare("SELECT 1 FROM accounts WHERE id = ?").get(accountId)) throw notFound("Account");
+    const o = jsonBody(req);
+    // null clears the type; anything else must be one of ACCOUNT_TYPES.
+    const accountType = o["accountType"] === null ? null : optEnum<AccountType>(o, "accountType", ACCOUNT_TYPES);
+    if (accountType === undefined) throw badRequest("accountType is required (use null to clear it).");
+    db.prepare("UPDATE accounts SET account_type = ? WHERE id = ?").run(accountType, accountId);
+    return loadAccounts(ctx, accountId)[0];
   });
 
   app.put("/api/accounts/:id/name", async (req) => {
