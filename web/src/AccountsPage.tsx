@@ -377,6 +377,7 @@ function AddAccount() {
   const submit = async () => {
     if (institutionId === "") return setError("Choose the institution.");
     if (displayName.trim() === "") return setError("Enter the account's name.");
+    if (accountNumber.trim() === "") return setError("Enter the account number.");
     if (ownerIds.length === 0) return setError("Choose at least one owner.");
     const body: CreateAccountRequest = {
       owners: ownerIds.map((personId) => ({ personId })),
@@ -440,7 +441,7 @@ function AddAccount() {
             <option value="irregular">Irregular</option>
           </select>
         </label>
-        <label><span>Account number (optional)</span><input type="text" dir="ltr" size={16} value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)} /></label>
+        <label><span>Account number</span><input type="text" dir="ltr" size={16} value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)} /></label>
       </div>
       <div>
         <span>Owner(s)</span>
