@@ -148,7 +148,8 @@ location, and marks the old one `superseded`. Both remain forever.
 people              id, display_name, ...
 institutions        id, name, country, metadata(json)
 accounts            id, institution_id, display_name, country, native_currency,
-                    account_type, opened_on, closed_on, statement_cadence, metadata(json)
+                    account_type, notes, opened_on, closed_on, statement_cadence,
+                    metadata(json)
 account_identifiers account_id, kind (last4 | full_hash | iban | policy_no | ...),
                     value, valid_from, valid_to
 account_owners      account_id, person_id, role (owner | joint | custodian |

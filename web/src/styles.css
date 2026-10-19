@@ -44,6 +44,7 @@ kbd { font-size: 0.8em; padding: 0 0.3em; border: 1px solid #b8c0cc; border-radi
 .fields label > span, .label { font-size: 0.8rem; color: #566170; }
 /* A checkbox and its name side by side (owner pickers); beats the stacked .fields label. */
 .fields label.inline, label.inline { display: inline-flex; flex-direction: row; align-items: center; gap: 0.35rem; margin-inline-end: 1rem; }
+.notes { white-space: pre-wrap; max-width: 24rem; }
 .owner-picker { display: flex; flex-wrap: wrap; gap: 0.25rem 0; }
 .fields label.grow, .row .grow { flex: 1; min-width: 10rem; }
 .row { display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: end; }

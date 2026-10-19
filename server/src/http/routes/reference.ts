@@ -73,6 +73,7 @@ export function loadAccounts(ctx: ApiContext, onlyId?: number): AccountDto[] {
     closedOn: (r["closed_on"] as string | null) ?? null,
     statementCadence: (r["statement_cadence"] as string | null) ?? null,
     accountType: (r["account_type"] as AccountType | null) ?? null,
+    notes: (r["notes"] as string | null) ?? null,
     accountNumber: current?.value ?? null,
     identifiers,
     owners: (ownerRows.all(Number(r["id"])) as Row[]).map(
@@ -100,6 +101,19 @@ function accountNumberField(o: Json, required: boolean): string | null | undefin
 }
 
 /** Validated owners from a request body: at least one, known people, no repeats. */
+const MAX_NOTES = 2000;
+
+/** Notes from a request body: trimmed; blank or null means none (null). undefined when the field is absent. */
+function notesField(o: Json, k: string): string | null | undefined {
+  const v = o[k];
+  if (v === undefined) return undefined;
+  if (v === null) return null;
+  if (typeof v !== "string") throw badRequest(`${k} must be a string or null.`);
+  const t = v.trim();
+  if (t.length > MAX_NOTES) throw badRequest(`${k} may be at most ${MAX_NOTES} characters.`);
+  return t === "" ? null : t;
+}
+
 function ownersField(ctx: ApiContext, o: Json): AccountOwnerInput[] {
   const raw = o["owners"];
   if (!Array.isArray(raw) || raw.length === 0) throw badRequest("An account needs at least one owner.");
@@ -193,6 +207,7 @@ export function registerReferenceRoutes(app: FastifyInstance, ctx: ApiContext): 
     const cadence = optEnum(o, "statementCadence", ["monthly", "quarterly", "semiannual", "annual", "irregular"] as const);
     const accountNumber = accountNumberField(o, false);
     const accountType = optEnum<AccountType>(o, "accountType", ACCOUNT_TYPES);
+    const notes = notesField(o, "notes");
     const owners = ownersField(ctx, o);
     const id = insertAccount(db, ctx.now, {
       institutionId,
@@ -205,10 +220,20 @@ export function registerReferenceRoutes(app: FastifyInstance, ctx: ApiContext): 
       ...(closedOn !== undefined ? { closedOn } : {}),
       ...(cadence !== undefined ? { statementCadence: cadence } : {}),
       ...(accountType !== undefined ? { accountType } : {}),
+      ...(notes ? { notes } : {}),
     });
     if (accountNumber) setAccountNumber(db, ctx.now, id, accountNumber);
     setAccountOwners(db, ctx.now, id, owners);
     return reply.code(201).send(loadAccounts(ctx, id)[0]);
+  });
+
+  app.put("/api/accounts/:id/notes", async (req) => {
+    const accountId = idParam(req);
+    if (!db.prepare("SELECT 1 FROM accounts WHERE id = ?").get(accountId)) throw notFound("Account");
+    const notes = notesField(jsonBody(req), "notes");
+    if (notes === undefined) throw badRequest("notes is required (use null to clear it).");
+    db.prepare("UPDATE accounts SET notes = ? WHERE id = ?").run(notes, accountId);
+    return loadAccounts(ctx, accountId)[0];
   });
 
   app.put("/api/accounts/:id/type", async (req) => {

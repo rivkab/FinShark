@@ -152,6 +152,7 @@ export interface NewAccount {
   closedOn?: string;
   statementCadence?: "monthly" | "quarterly" | "semiannual" | "annual" | "irregular";
   accountType?: string;
+  notes?: string;
 }
 
 export function insertAccount(db: DatabaseSync, clock: Clock, a: NewAccount): number {
@@ -162,8 +163,8 @@ export function insertAccount(db: DatabaseSync, clock: Clock, a: NewAccount): nu
   const r = db
     .prepare(
       `INSERT INTO accounts (institution_id, display_name, alt_name, country, language, native_currency,
-                             opened_on, closed_on, statement_cadence, account_type, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                             opened_on, closed_on, statement_cadence, account_type, notes, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .run(
       a.institutionId,
@@ -176,6 +177,7 @@ export function insertAccount(db: DatabaseSync, clock: Clock, a: NewAccount): nu
       a.closedOn ?? null,
       a.statementCadence ?? null,
       a.accountType ?? null,
+      a.notes ?? null,
       iso(clock),
     );
   return Number(r.lastInsertRowid);

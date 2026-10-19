@@ -7,7 +7,7 @@ const people = [{ id: 1, displayName: "Dana" }, { id: 2, displayName: "Avi" }];
 function acct(id: number, p: Partial<AccountDto>): AccountDto {
   return {
     id, institutionId: 1, institutionName: "Bank", displayName: `Acct ${id}`, altName: null, country: "US", language: "en",
-    nativeCurrency: "USD", openedOn: null, closedOn: null, statementCadence: null, accountType: null, accountNumber: null,
+    nativeCurrency: "USD", openedOn: null, closedOn: null, statementCadence: null, accountType: null, notes: null, accountNumber: null,
     identifiers: [], owners: [], ...p,
   };
 }

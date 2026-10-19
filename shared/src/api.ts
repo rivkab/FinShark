@@ -17,6 +17,7 @@
 //   GET  /api/accounts                       -> { accounts: AccountDto[] }
 //   POST /api/accounts        CreateAccountRequest       -> 201 AccountDto
 //   POST /api/accounts/:id/identifiers  AddIdentifierRequest -> 201 AccountDto
+//   PUT  /api/accounts/:id/notes           SetAccountNotesRequest -> AccountDto
 //   PUT  /api/accounts/:id/type            SetAccountTypeRequest -> AccountDto
 //   PUT  /api/accounts/:id/name            SetAccountNameRequest -> AccountDto
 //   PUT  /api/accounts/:id/account-number  SetAccountNumberRequest -> AccountDto
@@ -145,6 +146,8 @@ export interface AccountDto {
   statementCadence: string | null;
   /** null for accounts created before types existed. */
   accountType: AccountType | null;
+  /** Free text written by a person; null when there is none. */
+  notes: string | null;
   /** The current account number (identifier kind 'account_number'), or null. */
   accountNumber: string | null;
   /** All identifiers, including past account numbers with their validity dates. */
@@ -172,6 +175,7 @@ export interface CreateAccountRequest {
   statementCadence?: "monthly" | "quarterly" | "semiannual" | "annual" | "irregular";
   accountNumber?: string;
   accountType?: AccountType;
+  notes?: string;
   /** At least one. */
   owners: AccountOwnerInput[];
 }
@@ -186,6 +190,10 @@ export interface SetAccountOwnersRequest {
 export interface SetAccountNameRequest {
   displayName: string;
   altName?: string | null;
+}
+/** Blank or null clears the notes. At most 2000 characters. */
+export interface SetAccountNotesRequest {
+  notes: string | null;
 }
 /** null clears the type. */
 export interface SetAccountTypeRequest {

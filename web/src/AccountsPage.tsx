@@ -2,12 +2,12 @@ import { useState } from "react";
 import { ACCOUNT_TYPES, type AccountType } from "@finshark/shared";
 import type {
   AccountDto,
-  AccountIdentifierDto,
   CreateAccountRequest,
   CreateInstitutionRequest,
   InstitutionDto,
   Language,
   SetAccountNameRequest,
+  SetAccountNotesRequest,
   SetAccountNumberRequest,
   SetAccountTypeRequest,
   SetAccountOwnersRequest,
@@ -64,7 +64,7 @@ export function AccountsPage() {
       ) : (
         <table className="data">
           <thead>
-            <tr>{sortHeader("name", "Account")}{sortHeader("institution", "Institution")}{sortHeader("type", "Type")}{sortHeader("owners", "Owners")}<th>Account number</th>{sortHeader("country", "Country")}<th>Currency</th><th>Other identifiers</th><th>Dates</th><th /></tr>
+            <tr>{sortHeader("name", "Account")}{sortHeader("institution", "Institution")}{sortHeader("type", "Type")}{sortHeader("owners", "Owners")}<th>Account number</th>{sortHeader("country", "Country")}<th>Currency</th><th>Notes</th><th>Dates</th><th /></tr>
           </thead>
           <tbody>
             {sorted.map((a) => (
@@ -75,22 +75,6 @@ export function AccountsPage() {
       )}
       {institutions.length > 0 && <AddAccount />}
     </section>
-  );
-}
-
-/** Identifiers other than the current account number, including past account numbers. */
-function Identifiers({ list }: { list: AccountIdentifierDto[] }) {
-  const others = list.filter((i) => !(i.kind === "account_number" && i.validTo === null));
-  return (
-    <>
-      {others.map((i) => (
-        <div key={i.id}>
-          {i.kind === "last4" ? "ending " : i.kind === "account_number" ? "previous number " : `${i.kind} `}
-          <Value>{i.value}</Value>
-          {i.kind === "account_number" && i.validTo && <span className="muted"> (until <Value>{i.validTo}</Value>)</span>}
-        </div>
-      ))}
-    </>
   );
 }
 
@@ -139,6 +123,7 @@ function AccountRow({ account: a }: { account: AccountDto }) {
   const [number, setNumber] = useState("");
   const [name, setName] = useState("");
   const [type, setType] = useState("");
+  const [notes, setNotes] = useState("");
   const [altName, setAltName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -148,6 +133,7 @@ function AccountRow({ account: a }: { account: AccountDto }) {
     setNumber(a.accountNumber ?? "");
     setName(a.displayName);
     setType(a.accountType ?? "");
+    setNotes(a.notes ?? "");
     setAltName(a.altName ?? "");
     setError(null);
     setOpen(false);
@@ -172,6 +158,11 @@ function AccountRow({ account: a }: { account: AccountDto }) {
       if (type !== (a.accountType ?? "")) {
         const body: SetAccountTypeRequest = { accountType: type === "" ? null : (type as AccountType) };
         await mutate(() => apiFetch<AccountDto>(`/api/accounts/${a.id}/type`, { method: "PUT", body }));
+      }
+      const newNotes = notes.trim() === "" ? null : notes.trim();
+      if (newNotes !== a.notes) {
+        const body: SetAccountNotesRequest = { notes: newNotes };
+        await mutate(() => apiFetch<AccountDto>(`/api/accounts/${a.id}/notes`, { method: "PUT", body }));
       }
       if (ownersChanged) {
         // Keep role and share of owners that stay; new ones are plain owners.
@@ -230,7 +221,11 @@ function AccountRow({ account: a }: { account: AccountDto }) {
         </td>
         <td>{a.country}</td>
         <td>{a.nativeCurrency}</td>
-        <td><Identifiers list={a.identifiers} /></td>
+        <td>
+          {editing ? (
+            <textarea dir="auto" rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} />
+          ) : a.notes ? <div className="notes" dir="auto">{a.notes}</div> : <span className="muted">none</span>}
+        </td>
         <td>
           {a.openedOn && <div>opened <Value>{a.openedOn}</Value></div>}
           {a.closedOn && <div>closed <Value>{a.closedOn}</Value></div>}
@@ -396,6 +391,7 @@ function AddAccount() {
   const [cadence, setCadence] = useState("");
   const [accountNumber, setAccountNumber] = useState("");
   const [accountType, setAccountType] = useState("");
+  const [notes, setNotes] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -421,6 +417,7 @@ function AddAccount() {
       ...(closedOn ? { closedOn } : {}),
       ...(cadence ? { statementCadence: cadence as NonNullable<CreateAccountRequest["statementCadence"]> } : {}),
       accountType: accountType as AccountType,
+      ...(notes.trim() ? { notes: notes.trim() } : {}),
       ...(accountNumber.trim() ? { accountNumber: accountNumber.trim() } : {}),
     };
     setBusy(true);
@@ -430,6 +427,7 @@ function AddAccount() {
       setAltName("");
       setAccountNumber("");
       setAccountType("");
+      setNotes("");
       setOpenedOn("");
       setClosedOn("");
       setError(null);
@@ -488,6 +486,10 @@ function AddAccount() {
         <span className="label">Owner(s)</span>
         <OwnerPicker selected={ownerIds} onChange={setOwnerIds} />
       </div>
+      <label>
+        <span>Notes (optional)</span>
+        <textarea dir="auto" rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
+      </label>
       <ErrorNote>{error}</ErrorNote>
       <div><button type="submit" disabled={busy}>Add account</button></div>
     </form>

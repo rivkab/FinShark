@@ -319,6 +319,29 @@ describe("account owners", () => {
   });
 });
 
+describe("account notes", () => {
+  const hdrs = () => ({ host: HOST, cookie, "x-finshark-csrf": csrf, "content-type": "application/json" });
+  it("are set at creation, changed, cleared and validated", async () => {
+    await choosePerson();
+    const inst = (await call("POST", "/api/institutions", { name: "Notes Bank", country: "US" })).json();
+    const base = { institutionId: inst.id, displayName: "N", nativeCurrency: "USD", owners: [{ personId: 1 }] };
+    const made = await call("POST", "/api/accounts", { ...base, notes: "  Opened for the kids\nstatement by mail  " });
+    expect(made.statusCode).toBe(201);
+    expect(made.json().notes).toBe("Opened for the kids\nstatement by mail");
+    expect((await call("POST", "/api/accounts", base)).json().notes).toBeNull();
+    const id = made.json().id as number;
+    const put = (body: unknown) =>
+      app.inject({ method: "PUT", url: `/api/accounts/${id}/notes`, headers: hdrs(), payload: JSON.stringify(body) });
+    expect((await put({ notes: "Closed in June" })).json().notes).toBe("Closed in June");
+    expect((await put({ notes: "   " })).json().notes).toBeNull();
+    expect((await put({ notes: "x" })).json().notes).toBe("x");
+    expect((await put({ notes: null })).json().notes).toBeNull();
+    expect((await put({ notes: "a".repeat(2001) })).statusCode).toBe(400);
+    expect((await put({ notes: 5 })).statusCode).toBe(400);
+    expect((await put({})).statusCode).toBe(400);
+  });
+});
+
 describe("account types", () => {
   const hdrs = () => ({ host: HOST, cookie, "x-finshark-csrf": csrf, "content-type": "application/json" });
   it("is set at creation, changed, cleared and validated", async () => {
