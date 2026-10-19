@@ -392,10 +392,11 @@ function AddAccount() {
   const { institutions, people, reload } = useRefData();
   const { mutate } = useActor();
   const [ownerIds, setOwnerIds] = useState<number[]>(people.length === 1 ? [people[0]!.id] : []);
-  const [institutionId, setInstitutionId] = useState(String(institutions[0]?.id ?? ""));
+  const sortedInstitutions = sortInstitutions(institutions);
+  const [institutionId, setInstitutionId] = useState(String(sortedInstitutions[0]?.id ?? ""));
   const [displayName, setDisplayName] = useState("");
   const [altName, setAltName] = useState("");
-  const [currency, setCurrency] = useState(currencyForCountry(institutions[0]?.country ?? "US"));
+  const [currency, setCurrency] = useState(currencyForCountry(sortedInstitutions[0]?.country ?? "US"));
   const [openedOn, setOpenedOn] = useState("");
   const [closedOn, setClosedOn] = useState("");
   const [cadence, setCadence] = useState("");
@@ -456,7 +457,7 @@ function AddAccount() {
         <label>
           <span>Institution</span>
           <select value={institutionId} onChange={(e) => onInstitution(e.target.value)}>
-            {institutions.map((i) => <option key={i.id} value={i.id} dir="auto">{i.name}</option>)}
+            {sortedInstitutions.map((i) => <option key={i.id} value={i.id} dir="auto">{i.name}</option>)}
           </select>
         </label>
         <label className="grow"><span>Account name</span><input type="text" dir="auto" value={displayName} onChange={(e) => setDisplayName(e.target.value)} /></label>

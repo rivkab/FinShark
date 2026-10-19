@@ -8,6 +8,7 @@ import { PdfViewer, type PdfHighlight, type PdfSelection } from "./PdfViewer.tsx
 import { hrefFact } from "./route.ts";
 import { conceptLabel, pickLabel } from "./labels.ts";
 import { findPreviousDocument, factDateLabel, periodLabel, suggestionsFromFacts, type Suggestion } from "./suggest.ts";
+import { sortInstitutions } from "./institutionSort.ts";
 import { AccountName, AccountSelect, ErrorNote, FactAmount, FactConcept, StatusBadge, Warning, useLoad } from "./ui.tsx";
 import { Text, Value } from "./Value.tsx";
 
@@ -371,7 +372,7 @@ function DocDetails({ doc, onChanged }: { doc: DocumentDetailDto; onChanged: () 
           <span>Institution</span>
           <select value={f.institutionId} onChange={(e) => set({ institutionId: e.target.value })}>
             <option value="">Not set</option>
-            {institutions.map((i) => <option key={i.id} value={i.id} dir="auto">{i.name}</option>)}
+            {sortInstitutions(institutions).map((i) => <option key={i.id} value={i.id} dir="auto">{i.name}</option>)}
           </select>
         </label>
         <div className="row">
