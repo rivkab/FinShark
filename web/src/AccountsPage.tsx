@@ -15,12 +15,25 @@ import type {
 import { apiFetch, errorText } from "./api.ts";
 import { useActor, useRefData } from "./context.tsx";
 import { buildAttestationRequest, validateAttestation, type AttestationForm } from "./factForm.ts";
+import { sortAccounts, type AccountSortKey, type SortDir } from "./accountSort.ts";
 import { ACCOUNT_TYPE_LABEL, currencyForCountry, languageForCountry } from "./labels.ts";
 import { Cell, Text, Value } from "./Value.tsx";
 import { ErrorNote, InstitutionName, AccountName, langLabel } from "./ui.tsx";
 
 export function AccountsPage() {
-  const { institutions, accounts } = useRefData();
+  const { institutions, accounts, people } = useRefData();
+  const [sort, setSort] = useState<{ key: AccountSortKey; dir: SortDir }>({ key: "name", dir: "asc" });
+  const sorted = sortAccounts(accounts, sort.key, sort.dir, people);
+  /** Clicking the active column flips the direction; another column starts ascending. */
+  const sortBy = (key: AccountSortKey) =>
+    setSort((s) => (s.key === key ? { key, dir: s.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" }));
+  const sortHeader = (key: AccountSortKey, label: string) => (
+    <th aria-sort={sort.key === key ? (sort.dir === "asc" ? "ascending" : "descending") : "none"}>
+      <button type="button" className="sort" onClick={() => sortBy(key)}>
+        {label}{sort.key === key ? (sort.dir === "asc" ? " ▲" : " ▼") : ""}
+      </button>
+    </th>
+  );
   return (
     <section>
       <h1>Accounts</h1>
@@ -51,10 +64,10 @@ export function AccountsPage() {
       ) : (
         <table className="data">
           <thead>
-            <tr><th>Account</th><th>Institution</th><th>Type</th><th>Owners</th><th>Account number</th><th>Country</th><th>Currency</th><th>Other identifiers</th><th>Dates</th><th /></tr>
+            <tr>{sortHeader("name", "Account")}{sortHeader("institution", "Institution")}{sortHeader("type", "Type")}{sortHeader("owners", "Owners")}<th>Account number</th>{sortHeader("country", "Country")}<th>Currency</th><th>Other identifiers</th><th>Dates</th><th /></tr>
           </thead>
           <tbody>
-            {accounts.map((a) => (
+            {sorted.map((a) => (
               <AccountRow key={a.id} account={a} />
             ))}
           </tbody>
