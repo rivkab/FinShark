@@ -14,10 +14,10 @@ import { ErrorNote } from "./ui.tsx";
 import { Text } from "./Value.tsx";
 
 const NAV = [
+  { label: "Accounts", href: "#/accounts", pages: ["accounts"] },
   { label: "Documents", href: "#/documents", pages: ["documents", "document"] },
   { label: "Review", href: "#/review", pages: ["review"] },
   { label: "Facts", href: "#/facts", pages: ["facts", "fact"] },
-  { label: "Accounts", href: "#/accounts", pages: ["accounts"] },
   { label: "People", href: "#/people", pages: ["people"] },
 ] as const;
 

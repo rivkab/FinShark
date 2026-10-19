@@ -9,8 +9,8 @@ describe("parseHash", () => {
     expect(hrefDocuments()).toBe("#/documents");
     expect(hrefDocuments(null)).toBe("#/documents");
   });
-  it("defaults to documents", () => {
-    for (const h of ["", "#", "#/", "#/nonsense"]) expect(parseHash(h)).toEqual({ page: "documents", accountId: null });
+  it("defaults to accounts", () => {
+    for (const h of ["", "#", "#/", "#/nonsense"]) expect(parseHash(h)).toEqual({ page: "accounts" });
   });
   it("parses document links with a fact", () => {
     expect(parseHash("#/documents/12?fact=40")).toEqual({ page: "document", id: 12, factId: 40 });
@@ -34,6 +34,6 @@ describe("parseHash", () => {
     expect(parseHash(hrefFacts({ concept: "balance.ending", status: "" }))).toEqual({ page: "facts", filters: { concept: "balance.ending" } });
   });
   it("survives malformed escapes", () => {
-    expect(parseHash("#/%E0%A4%A")).toEqual({ page: "documents", accountId: null });
+    expect(parseHash("#/%E0%A4%A")).toEqual({ page: "accounts" });
   });
 });

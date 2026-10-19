@@ -52,7 +52,7 @@ export function parseHash(hash: string): Route {
     case "demo":
       return { page: "demo" };
     default:
-      return { page: "documents", accountId: null };
+      return { page: "accounts" };
   }
 }
 
