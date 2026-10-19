@@ -46,7 +46,7 @@ export function AccountsPage() {
       ) : (
         <table className="data">
           <thead>
-            <tr>{sortHeader("name", "Account")}{sortHeader("institution", "Institution")}{sortHeader("type", "Type")}{sortHeader("owners", "Owners")}<th>Account number</th>{sortHeader("country", "Country")}<th>Currency</th><th>Notes</th><th>Dates</th><th /></tr>
+            <tr>{sortHeader("name", "Account")}{sortHeader("institution", "Institution")}{sortHeader("type", "Type")}{sortHeader("owners", "Owners")}<th>Account number</th>{sortHeader("country", "Country")}<th>Currency</th><th>Notes</th><th /></tr>
           </thead>
           <tbody>
             {sorted.map((a) => (
@@ -241,11 +241,6 @@ function AccountRow({ account: a, docCount }: { account: AccountDto; docCount: n
           ) : a.notes ? <div className="notes" dir="auto">{a.notes}</div> : <span className="muted">none</span>}
         </td>
         <td>
-          {a.openedOn && <div>opened <Value>{a.openedOn}</Value></div>}
-          {a.closedOn && <div>closed <Value>{a.closedOn}</Value></div>}
-          {a.statementCadence && <div className="muted">{a.statementCadence}</div>}
-        </td>
-        <td>
           {editing ? (
             <>
               <button type="button" onClick={() => void save()} disabled={busy}>Save</button>{" "}
@@ -262,7 +257,7 @@ function AccountRow({ account: a, docCount }: { account: AccountDto; docCount: n
       </tr>
       {open && (
         <tr>
-          <td colSpan={10}>
+          <td colSpan={9}>
             <Attest account={a} onDone={() => setOpen(false)} />
           </td>
         </tr>
