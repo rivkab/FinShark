@@ -40,27 +40,6 @@ export function AccountsPage() {
   return (
     <section>
       <h1>Accounts</h1>
-      <h2>Institutions</h2>
-      {institutions.length === 0 ? (
-        <p>No institutions yet. Add the banks, brokers and funds your documents come from.</p>
-      ) : (
-        <table className="data">
-          <thead>
-            <tr><th>Name</th><th>Country</th><th>Language</th></tr>
-          </thead>
-          <tbody>
-            {institutions.map((i) => (
-              <tr key={i.id}>
-                <Cell><InstitutionName inst={i} /></Cell>
-                <td>{i.country}</td>
-                <td>{langLabel(i.language)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-      <AddInstitution />
-
       <h2>Accounts</h2>
       {accounts.length === 0 ? (
         <p>No accounts yet.{institutions.length === 0 ? " Add an institution first." : ""}</p>
@@ -81,6 +60,27 @@ export function AccountsPage() {
         </table>
       )}
       {institutions.length > 0 && <AddAccount />}
+
+      <h2>Institutions</h2>
+      {institutions.length === 0 ? (
+        <p>No institutions yet. Add the banks, brokers and funds your documents come from.</p>
+      ) : (
+        <table className="data">
+          <thead>
+            <tr><th>Name</th><th>Country</th><th>Language</th></tr>
+          </thead>
+          <tbody>
+            {institutions.map((i) => (
+              <tr key={i.id}>
+                <Cell><InstitutionName inst={i} /></Cell>
+                <td>{i.country}</td>
+                <td>{langLabel(i.language)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      <AddInstitution />
     </section>
   );
 }
