@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import type { AccountDto, ConceptDto, FactDto, FactStatus, InstitutionDto, Language } from "@finshark/shared";
 import { errorText } from "./api.ts";
+import { useRefData } from "./context.tsx";
 import { accountNames, conceptPickerParts, filterConcepts, groupAccounts, pickLabel } from "./labels.ts";
 import { Text, Value } from "./Value.tsx";
 
@@ -111,11 +112,15 @@ export function AccountSelect({
   noneLabel?: string;
   id?: string;
 }) {
+  const { people } = useRefData();
   const g = groupAccounts(accounts, institutionId);
+  const ownerNames = (a: AccountDto) =>
+    a.owners.map((o) => people.find((p) => p.id === o.personId)?.displayName).filter((n): n is string => !!n).join(", ");
   const opt = (a: AccountDto) => (
     <option key={a.id} value={a.id} dir="auto">
       {a.displayName}
       {a.altName ? ` (${a.altName})` : ""} · {a.institutionName} · {a.nativeCurrency}
+      {ownerNames(a) ? ` · ${ownerNames(a)}` : ""}
     </option>
   );
   return (
