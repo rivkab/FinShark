@@ -980,3 +980,19 @@ It is a label, not a classification. Whether something is retirement savings, or
 it is taxed or counted for aid, stays in taxonomies (C5); queries should not infer
 those from the type. "Pension" and "keren hishtalmut" say what the product is, not how a
 filing treats it.
+
+### D11. Numbers are verified when they are added; the Review page is gone (2026-10-19)
+
+Drawing a box around a number and saving it is the human check, so the web app now
+verifies it straight away. It still goes through the same two steps on the server:
+`POST /api/facts` (or `/api/attestations`) records a `proposed` fact, then the app calls
+`POST /api/facts/:id/verify`, so the fact history shows both events and the API is
+unchanged. The Review queue page, its route and its keyboard shortcuts were removed;
+`GET /api/review-queue` remains.
+
+If a different value is already verified for the same slot, verification returns the
+usual 409 conflict. The fact stays `proposed`, the add panel says so and links to it,
+and the fact page offers Verify (retry), Correct, and Reopen for rejected facts.
+Rejecting a proposed fact has no button in the web app now; correct it instead.
+Queries still exclude unverified facts by default, so a conflicted fact is surfaced,
+not silently used.

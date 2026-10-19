@@ -3,7 +3,6 @@
 export type Route =
   | { page: "documents"; accountId: number | null }
   | { page: "document"; id: number; factId: number | null }
-  | { page: "review"; factId: number | null }
   | { page: "facts"; filters: Record<string, string> }
   | { page: "fact"; id: number }
   | { page: "accounts" }
@@ -34,8 +33,6 @@ export function parseHash(hash: string): Route {
       return second !== undefined && ID.test(second)
         ? { page: "document", id: Number(second), factId: qId("fact") }
         : { page: "documents", accountId: qId("account") };
-    case "review":
-      return { page: "review", factId: qId("fact") };
     case "facts": {
       if (second !== undefined && ID.test(second)) return { page: "fact", id: Number(second) };
       const filters: Record<string, string> = {};

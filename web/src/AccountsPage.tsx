@@ -5,6 +5,7 @@ import type {
   CreateAccountRequest,
   CreateInstitutionRequest,
   DocumentDto,
+  FactDto,
   InstitutionDto,
   Language,
   SetAccountNameRequest,
@@ -13,8 +14,8 @@ import type {
   SetAccountTypeRequest,
   SetAccountOwnersRequest,
 } from "@finshark/shared";
-import { apiFetch, errorText } from "./api.ts";
-import { hrefDocuments } from "./route.ts";
+import { ApiError, apiFetch, errorText } from "./api.ts";
+import { hrefDocuments, hrefFact } from "./route.ts";
 import { useActor, useRefData } from "./context.tsx";
 import { buildAttestationRequest, validateAttestation, type AttestationForm } from "./factForm.ts";
 import { sortInstitutions } from "./institutionSort.ts";
@@ -273,6 +274,7 @@ function Attest({ account, onDone }: { account: AccountDto; onDone: () => void }
   const [errors, setErrors] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
+  const [savedFactId, setSavedFactId] = useState<number | null>(null);
   const set = (p: Partial<AttestationForm>) => setForm({ ...form, ...p });
 
   const submit = async () => {
@@ -281,7 +283,17 @@ function Attest({ account, onDone }: { account: AccountDto; onDone: () => void }
     if (errs.length) return;
     setBusy(true);
     try {
-      await mutate(() => apiFetch("/api/attestations", { method: "POST", body: buildAttestationRequest(account.id, form) }));
+      const { fact } = await mutate(() =>
+        apiFetch<{ fact: FactDto }>("/api/attestations", { method: "POST", body: buildAttestationRequest(account.id, form) }),
+      );
+      try {
+        await mutate(() => apiFetch(`/api/facts/${fact.id}/verify`, { method: "POST", body: {} }));
+        setSavedFactId(null);
+      } catch (e) {
+        // Recorded but a different value is already verified: leave it proposed and link to it.
+        if (!(e instanceof ApiError && e.conflicts)) throw e;
+        setSavedFactId(fact.id);
+      }
       setDone(true);
     } catch (e) {
       setErrors([errorText(e)]);
@@ -293,7 +305,13 @@ function Attest({ account, onDone }: { account: AccountDto; onDone: () => void }
   if (done) {
     return (
       <div className="panel">
-        <p>Recorded. It is waiting for verification in <a href="#/review">Review</a>.</p>
+        {savedFactId === null ? (
+          <p>Recorded and verified.</p>
+        ) : (
+          <p>
+            Recorded but not verified: a different value is already verified for the same slot. <a href={hrefFact(savedFactId)}>Open it</a> to correct or compare.
+          </p>
+        )}
         <button onClick={onDone}>Close</button>
       </div>
     );

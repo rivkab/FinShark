@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { DocumentDetailDto, DocumentDto, FactDto, Language, PdfRect, ProposeFactResponse, UpdateDocumentRequest } from "@finshark/shared";
-import { apiFetch, errorText } from "./api.ts";
+import { ApiError, apiFetch, errorText } from "./api.ts";
 import { useActor, useRefData } from "./context.tsx";
 import { FactFormFields } from "./FactFields.tsx";
 import { applyConceptChange, buildProposeRequest, emptyFactForm, isMoney, mismatchWarning, validateFactForm, type FactFormState } from "./factForm.ts";
@@ -37,6 +37,7 @@ export function DocumentView({ id, factId }: { id: number; factId: number | null
   const [errors, setErrors] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [added, setAdded] = useState<ProposeFactResponse | null>(null);
+  const [conflictWith, setConflictWith] = useState<FactDto[] | null>(null);
   const addPanel = useRef<HTMLDivElement>(null);
   const [statusBusy, setStatusBusy] = useState(false);
   const [statusError, setStatusError] = useState<string | null>(null);
@@ -61,6 +62,7 @@ export function DocumentView({ id, factId }: { id: number; factId: number | null
     setForm({ ...emptyFactForm(), accountId: only ? String(only.id) : "", currency: only?.nativeCurrency ?? "" });
     setDraft(null);
     setAdded(null);
+    setConflictWith(null);
     setHintBox(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [doc?.id]);
@@ -154,7 +156,17 @@ export function DocumentView({ id, factId }: { id: number; factId: number | null
           body: buildProposeRequest(form, concept, { documentId: id, pageNo: draft.pageNo, bbox: draft.rect }),
         }),
       );
-      setAdded(res);
+      let fact = res.fact;
+      let conflicts: FactDto[] | null = null;
+      try {
+        fact = await mutate(() => apiFetch<{ fact: FactDto }>(`/api/facts/${fact.id}/verify`, { method: "POST", body: {} }).then((r) => r.fact));
+      } catch (e) {
+        // A different value is already verified for the same slot: keep it as proposed and say so.
+        conflicts = e instanceof ApiError ? e.conflicts : null;
+        if (!conflicts) throw e;
+      }
+      setAdded({ ...res, fact });
+      setConflictWith(conflicts);
       setDraft(null);
       setResetKey((k) => k + 1);
       setHintBox(null);
@@ -211,7 +223,7 @@ export function DocumentView({ id, factId }: { id: number; factId: number | null
             selectionResetKey={resetKey}
           />
           <p className="legend">
-            Boxes: <span className="swatch proposed" /> waiting for review <span className="swatch verified" /> verified{" "}
+            Boxes: <span className="swatch proposed" /> not verified <span className="swatch verified" /> verified{" "}
             <span className="swatch rejected" /> rejected <span className="swatch hint" /> where it was last time
           </p>
         </div>
@@ -229,7 +241,15 @@ export function DocumentView({ id, factId }: { id: number; factId: number | null
             )}
             {added && (
               <div>
-                <p className="ok">Added <FactAmount fact={added.fact} /> (<FactConcept fact={added.fact} />). It now waits for review.</p>
+                {conflictWith ? (
+                  <Warning>
+                    Saved <FactAmount fact={added.fact} /> (<FactConcept fact={added.fact} />) but not verified: a different value is already verified for the
+                    same kind of number, account, person and date ({conflictWith.map((c, i) => <span key={c.id}>{i > 0 && ", "}<a href={hrefFact(c.id)}>#{c.id}</a></span>)}).{" "}
+                    <a href={hrefFact(added.fact.id)}>Open it</a> to correct or compare.
+                  </Warning>
+                ) : (
+                  <p className="ok">Added and verified <FactAmount fact={added.fact} /> (<FactConcept fact={added.fact} />).</p>
+                )}
                 {warning && <Warning>{warning}</Warning>}
               </div>
             )}

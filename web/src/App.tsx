@@ -8,7 +8,6 @@ import { DocumentsPage } from "./DocumentsPage.tsx";
 import { DocumentView } from "./DocumentView.tsx";
 import { FactHistory, FactsPage } from "./FactsPage.tsx";
 import { AddPersonForm, PeoplePage } from "./PeoplePage.tsx";
-import { ReviewPage } from "./ReviewPage.tsx";
 import { parseHash, type Route } from "./route.ts";
 import { ErrorNote } from "./ui.tsx";
 import { Text } from "./Value.tsx";
@@ -16,7 +15,6 @@ import { Text } from "./Value.tsx";
 const NAV = [
   { label: "Accounts", href: "#/accounts", pages: ["accounts"] },
   { label: "Documents", href: "#/documents", pages: ["documents", "document"] },
-  { label: "Review", href: "#/review", pages: ["review"] },
   { label: "Facts", href: "#/facts", pages: ["facts", "fact"] },
   { label: "People", href: "#/people", pages: ["people"] },
 ] as const;
@@ -177,7 +175,6 @@ function Page({ route }: { route: Route }) {
   switch (route.page) {
     case "documents": return <DocumentsPage accountId={route.accountId} />;
     case "document": return <DocumentView id={route.id} factId={route.factId} />;
-    case "review": return <ReviewPage startFactId={route.factId} />;
     case "facts": return <FactsPage filters={route.filters} />;
     case "fact": return <FactHistory id={route.id} />;
     case "accounts": return <AccountsPage />;

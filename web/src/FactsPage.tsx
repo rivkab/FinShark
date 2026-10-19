@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { DocumentDto, FactDetailDto, FactDto, FactEventDto } from "@finshark/shared";
-import { apiFetch, errorText } from "./api.ts";
+import { ApiError, apiFetch, errorText } from "./api.ts";
 import { useActor, useRefData } from "./context.tsx";
 import { hrefDocument, hrefFact, hrefFacts } from "./route.ts";
 import { factDateLabel } from "./suggest.ts";
@@ -29,7 +29,7 @@ export function FactsPage({ filters }: { filters: Record<string, string> }) {
           <span>Status</span>
           <select value={filters["status"] ?? ""} onChange={(e) => set("status", e.target.value)}>
             <option value="">Any</option>
-            <option value="proposed">Waiting for review</option>
+            <option value="proposed">Not verified</option>
             <option value="verified">Verified</option>
             <option value="rejected">Rejected</option>
             <option value="superseded">Replaced</option>
@@ -122,6 +122,19 @@ export function FactHistory({ id }: { id: number }) {
       setError(errorText(e));
     }
   };
+  const verify = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await mutate(() => apiFetch(`/api/facts/${id}/verify`, { method: "POST", body: {} }));
+      setError(null);
+      await detail.reload();
+    } catch (e) {
+      setError(e instanceof ApiError && e.conflicts ? "Not verified: a different value is already verified for the same kind of number, account, person and date." : errorText(e));
+    } finally {
+      setBusy(false);
+    }
+  };
   const submitCorrection = async (verify: boolean) => {
     if (!form || busy) return;
     const concept = concepts.find((c) => c.id === form.conceptId);
@@ -158,7 +171,8 @@ export function FactHistory({ id }: { id: number }) {
           {f.note && (<><dt>Note</dt><dd dir="auto">{f.note}</dd></>)}
         </dl>
         {warning && <Warning>{warning}</Warning>}
-        {f.status === "rejected" && <p><button onClick={() => void reopen()}>Reopen for review</button></p>}
+        {f.status === "rejected" && <p><button onClick={() => void reopen()}>Reopen</button></p>}
+        {f.status === "proposed" && !form && <p><button className="primary" onClick={() => void verify()} disabled={busy}>Verify</button></p>}
         {(f.status === "proposed" || f.status === "verified") && !form && (
           <p><button onClick={() => { setError(null); setForm(formFromFact(f)); }}>Correct this number</button></p>
         )}
@@ -173,7 +187,7 @@ export function FactHistory({ id }: { id: number }) {
             <FactFormFields form={form} onChange={setForm} concepts={concepts} accounts={accounts} institutionId={null} period={{ periodStart: null, periodEnd: null }} />
             <p>
               <button type="submit" className="primary" disabled={busy}>Save correction and verify</button>{" "}
-              <button type="button" disabled={busy} onClick={() => void submitCorrection(false)}>Save for review</button>{" "}
+              <button type="button" disabled={busy} onClick={() => void submitCorrection(false)}>Save without verifying</button>{" "}
               <button type="button" disabled={busy} onClick={() => { setForm(null); setError(null); }}>Cancel</button>
             </p>
           </form>

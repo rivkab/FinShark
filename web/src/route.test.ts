@@ -18,9 +18,7 @@ describe("parseHash", () => {
     expect(parseHash("#/documents/12?fact=abc")).toEqual({ page: "document", id: 12, factId: null });
     expect(parseHash("#/documents/x")).toEqual({ page: "documents", accountId: null });
   });
-  it("parses review, facts, fact history, accounts, demo", () => {
-    expect(parseHash("#/review")).toEqual({ page: "review", factId: null });
-    expect(parseHash("#/review?fact=7")).toEqual({ page: "review", factId: 7 });
+  it("parses facts, fact history, accounts, demo", () => {
     expect(parseHash("#/facts")).toEqual({ page: "facts", filters: {} });
     expect(parseHash("#/facts?status=proposed&account=3&junk=1")).toEqual({ page: "facts", filters: { status: "proposed", account: "3" } });
     expect(parseHash("#/facts/9")).toEqual({ page: "fact", id: 9 });

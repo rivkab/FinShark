@@ -83,18 +83,14 @@ tr.superseded td, tr.rejected td { color: #667085; }
 .results { list-style: none; padding: 0; }
 .results li { padding: 0.2rem 0; }
 
-/* ---- document and review screens */
+/* ---- document screen */
 .docview-grid { display: grid; grid-template-columns: minmax(0, 1fr) 27rem; gap: 1rem; align-items: start; }
 .docview-pdf { position: sticky; top: 0.5rem; }
-.docview .pdf-scroll, .review .pdf-scroll { max-height: 82vh; }
+.docview .pdf-scroll { max-height: 82vh; }
 .docview-head { display: flex; align-items: baseline; gap: 1rem; }
 .docview-head h1 { font-size: 1.2rem; margin: 0.4rem 0; }
 .docview-head .spacer { flex: 1; }
 .docview-head button { padding: 0.5rem 1rem; }
-.review-head { display: flex; align-items: baseline; gap: 0.75rem; }
-.review-head h1 { margin: 0.4rem 0; }
-.review-head .spacer { flex: 1; }
-.progress { font-size: 1.1rem; }
 ul.facts, ul.suggestions { list-style: none; padding: 0; margin: 0.5rem 0 0; }
 ul.facts li { padding: 0.35rem 0.4rem; border-bottom: 1px solid #eceff4; }
 ul.facts li.focused { background: #fff3e0; }
@@ -127,7 +123,6 @@ ol.chain li.current { border-color: #1757c2; background: #eef4ff; }
 details > summary { cursor: pointer; }
 @media (max-width: 1000px) { .docview-grid { grid-template-columns: 1fr; } .docview-pdf { position: static; } }
 .docview-side { position: sticky; top: 0.5rem; max-height: calc(100vh - 1rem); overflow-y: auto; padding-inline-end: 0.25rem; }
-.review .docview-side { position: static; max-height: none; }
 @media (max-width: 1000px) { .docview-side { position: static; max-height: none; } }
 
 /* Column header that sorts the table when clicked. */
