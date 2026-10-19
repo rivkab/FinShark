@@ -1,15 +1,22 @@
 import { describe, expect, it } from "vitest";
-import { hrefDocument, hrefFacts, parseHash } from "./route.ts";
+import { hrefDocument, hrefDocuments, hrefFacts, parseHash } from "./route.ts";
 
 describe("parseHash", () => {
+  it("reads an account filter on the documents list", () => {
+    expect(parseHash("#/documents?account=7")).toEqual({ page: "documents", accountId: 7 });
+    expect(parseHash("#/documents?account=abc")).toEqual({ page: "documents", accountId: null });
+    expect(hrefDocuments(7)).toBe("#/documents?account=7");
+    expect(hrefDocuments()).toBe("#/documents");
+    expect(hrefDocuments(null)).toBe("#/documents");
+  });
   it("defaults to documents", () => {
-    for (const h of ["", "#", "#/", "#/nonsense"]) expect(parseHash(h)).toEqual({ page: "documents" });
+    for (const h of ["", "#", "#/", "#/nonsense"]) expect(parseHash(h)).toEqual({ page: "documents", accountId: null });
   });
   it("parses document links with a fact", () => {
     expect(parseHash("#/documents/12?fact=40")).toEqual({ page: "document", id: 12, factId: 40 });
     expect(parseHash("#/documents/12")).toEqual({ page: "document", id: 12, factId: null });
     expect(parseHash("#/documents/12?fact=abc")).toEqual({ page: "document", id: 12, factId: null });
-    expect(parseHash("#/documents/x")).toEqual({ page: "documents" });
+    expect(parseHash("#/documents/x")).toEqual({ page: "documents", accountId: null });
   });
   it("parses review, facts, fact history, accounts, demo", () => {
     expect(parseHash("#/review")).toEqual({ page: "review", factId: null });
@@ -27,6 +34,6 @@ describe("parseHash", () => {
     expect(parseHash(hrefFacts({ concept: "balance.ending", status: "" }))).toEqual({ page: "facts", filters: { concept: "balance.ending" } });
   });
   it("survives malformed escapes", () => {
-    expect(parseHash("#/%E0%A4%A")).toEqual({ page: "documents" });
+    expect(parseHash("#/%E0%A4%A")).toEqual({ page: "documents", accountId: null });
   });
 });

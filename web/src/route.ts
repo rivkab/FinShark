@@ -1,7 +1,7 @@
 // Hash routing: "#/documents/12?fact=40".
 
 export type Route =
-  | { page: "documents" }
+  | { page: "documents"; accountId: number | null }
   | { page: "document"; id: number; factId: number | null }
   | { page: "review"; factId: number | null }
   | { page: "facts"; filters: Record<string, string> }
@@ -31,7 +31,9 @@ export function parseHash(hash: string): Route {
   const [head, second] = segs;
   switch (head) {
     case "documents":
-      return second !== undefined && ID.test(second) ? { page: "document", id: Number(second), factId: qId("fact") } : { page: "documents" };
+      return second !== undefined && ID.test(second)
+        ? { page: "document", id: Number(second), factId: qId("fact") }
+        : { page: "documents", accountId: qId("account") };
     case "review":
       return { page: "review", factId: qId("fact") };
     case "facts": {
@@ -50,10 +52,12 @@ export function parseHash(hash: string): Route {
     case "demo":
       return { page: "demo" };
     default:
-      return { page: "documents" };
+      return { page: "documents", accountId: null };
   }
 }
 
+/** The documents list, optionally only those linked to one account. */
+export const hrefDocuments = (accountId?: number | null): string => (accountId ? `#/documents?account=${accountId}` : "#/documents");
 export const hrefDocument = (id: number, factId?: number | null): string => `#/documents/${id}${factId ? `?fact=${factId}` : ""}`;
 export const hrefFact = (id: number): string => `#/facts/${id}`;
 export const hrefFacts = (filters: Record<string, string> = {}): string => {

@@ -175,7 +175,7 @@ function Shell({
 
 function Page({ route }: { route: Route }) {
   switch (route.page) {
-    case "documents": return <DocumentsPage />;
+    case "documents": return <DocumentsPage accountId={route.accountId} />;
     case "document": return <DocumentView id={route.id} factId={route.factId} />;
     case "review": return <ReviewPage startFactId={route.factId} />;
     case "facts": return <FactsPage filters={route.filters} />;

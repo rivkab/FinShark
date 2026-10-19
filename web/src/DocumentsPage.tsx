@@ -2,7 +2,7 @@ import { useRef, useState, type DragEvent } from "react";
 import type { DocumentDto } from "@finshark/shared";
 import { apiFetch, errorText, uploadPdf } from "./api.ts";
 import { useActor, useRefData } from "./context.tsx";
-import { hrefDocument } from "./route.ts";
+import { hrefDocument, hrefDocuments } from "./route.ts";
 import { describeUpload, periodLabel, type UploadOutcome } from "./suggest.ts";
 import { ErrorNote, useLoad, AccountName } from "./ui.tsx";
 import { Cell, Text, Value } from "./Value.tsx";
@@ -15,9 +15,12 @@ interface FileResult {
   error?: string;
 }
 
-export function DocumentsPage() {
+export function DocumentsPage({ accountId }: { accountId: number | null }) {
   const { mutate } = useActor();
+  const { accounts } = useRefData();
   const docs = useLoad(() => apiFetch<{ documents: DocumentDto[] }>("/api/documents").then((r) => r.documents), 0);
+  const shown = (docs.data ?? []).filter((d) => accountId === null || d.accountIds.includes(accountId));
+  const account = accountId === null ? undefined : accounts.find((a) => a.id === accountId);
   const [results, setResults] = useState<FileResult[]>([]);
   const [dragging, setDragging] = useState(false);
   const input = useRef<HTMLInputElement>(null);
@@ -77,10 +80,21 @@ export function DocumentsPage() {
         </ul>
       )}
 
-      <h2>All documents</h2>
+      <h2>{account ? <>Documents for <AccountName account={account} /></> : accountId ? "Documents for an unknown account" : "All documents"}</h2>
+      <div className="filters">
+        <label>
+          <span>Account</span>
+          <select value={accountId ?? ""} onChange={(e) => { window.location.hash = hrefDocuments(Number(e.target.value) || null).slice(1); }}>
+            <option value="">Any</option>
+            {accounts.map((a) => <option key={a.id} value={a.id} dir="auto">{a.displayName}</option>)}
+          </select>
+        </label>
+        {accountId !== null && <a href={hrefDocuments()}>Show all documents</a>}
+      </div>
       <ErrorNote>{docs.error}</ErrorNote>
       {docs.data && docs.data.length === 0 && <p>No documents yet. Add a PDF above to get started.</p>}
-      {docs.data && docs.data.length > 0 && <DocumentTable docs={docs.data} />}
+      {docs.data && docs.data.length > 0 && shown.length === 0 && <p>No documents are linked to this account yet.</p>}
+      {shown.length > 0 && <DocumentTable docs={shown} />}
     </section>
   );
 }

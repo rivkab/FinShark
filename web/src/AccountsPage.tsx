@@ -4,6 +4,7 @@ import type {
   AccountDto,
   CreateAccountRequest,
   CreateInstitutionRequest,
+  DocumentDto,
   InstitutionDto,
   Language,
   SetAccountNameRequest,
@@ -13,15 +14,17 @@ import type {
   SetAccountOwnersRequest,
 } from "@finshark/shared";
 import { apiFetch, errorText } from "./api.ts";
+import { hrefDocuments } from "./route.ts";
 import { useActor, useRefData } from "./context.tsx";
 import { buildAttestationRequest, validateAttestation, type AttestationForm } from "./factForm.ts";
 import { sortAccounts, type AccountSortKey, type SortDir } from "./accountSort.ts";
 import { ACCOUNT_TYPE_LABEL, currencyForCountry, languageForCountry } from "./labels.ts";
 import { Cell, Text, Value } from "./Value.tsx";
-import { ErrorNote, InstitutionName, AccountName, langLabel } from "./ui.tsx";
+import { ErrorNote, InstitutionName, AccountName, langLabel, useLoad } from "./ui.tsx";
 
 export function AccountsPage() {
   const { institutions, accounts, people } = useRefData();
+  const docs = useLoad(() => apiFetch<{ documents: DocumentDto[] }>("/api/documents").then((r) => r.documents), 0);
   const [sort, setSort] = useState<{ key: AccountSortKey; dir: SortDir }>({ key: "name", dir: "asc" });
   const sorted = sortAccounts(accounts, sort.key, sort.dir, people);
   /** Clicking the active column flips the direction; another column starts ascending. */
@@ -68,7 +71,11 @@ export function AccountsPage() {
           </thead>
           <tbody>
             {sorted.map((a) => (
-              <AccountRow key={a.id} account={a} />
+              <AccountRow
+                key={a.id}
+                account={a}
+                docCount={docs.data ? docs.data.filter((d) => d.accountIds.includes(a.id)).length : null}
+              />
             ))}
           </tbody>
         </table>
@@ -114,7 +121,7 @@ function OwnersView({ account }: { account: AccountDto }) {
   );
 }
 
-function AccountRow({ account: a }: { account: AccountDto }) {
+function AccountRow({ account: a, docCount }: { account: AccountDto; docCount: number | null }) {
   const { reload } = useRefData();
   const { mutate } = useActor();
   const [open, setOpen] = useState(false);
@@ -199,7 +206,14 @@ function AccountRow({ account: a }: { account: AccountDto }) {
             <label><span className="muted">Name in the other language (optional)</span><input type="text" dir="auto" value={altName} onChange={(e) => setAltName(e.target.value)} /></label>
           </td>
         ) : (
-          <Cell><AccountName account={a} /></Cell>
+          <Cell>
+            <AccountName account={a} />
+            {docCount !== null && (
+              <div className="small">
+                {docCount === 0 ? <span className="muted">no documents</span> : <a href={hrefDocuments(a.id)}>{docCount} {docCount === 1 ? "document" : "documents"}</a>}
+              </div>
+            )}
+          </Cell>
         )}
         <Cell><Text>{a.institutionName}</Text></Cell>
         <td>
