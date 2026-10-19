@@ -17,6 +17,7 @@ import { apiFetch, errorText } from "./api.ts";
 import { hrefDocuments } from "./route.ts";
 import { useActor, useRefData } from "./context.tsx";
 import { buildAttestationRequest, validateAttestation, type AttestationForm } from "./factForm.ts";
+import { sortInstitutions } from "./institutionSort.ts";
 import { sortAccounts, type AccountSortKey, type SortDir } from "./accountSort.ts";
 import { ACCOUNT_TYPE_LABEL, currencyForCountry, languageForCountry } from "./labels.ts";
 import { Cell, Text, Value } from "./Value.tsx";
@@ -70,7 +71,7 @@ export function AccountsPage() {
             <tr><th>Name</th><th>Country</th><th>Language</th></tr>
           </thead>
           <tbody>
-            {institutions.map((i) => (
+            {sortInstitutions(institutions).map((i) => (
               <tr key={i.id}>
                 <Cell><InstitutionName inst={i} /></Cell>
                 <td>{i.country}</td>
