@@ -70,7 +70,10 @@ export function FactsPage({ filters }: { filters: Record<string, string> }) {
               <tr key={f.id} className={f.status}>
                 <td><StatusBadge status={f.status} /></td>
                 <Cell><FactConcept fact={f} /></Cell>
-                <Cell>{f.accountName ?? <span className="muted">none</span>}</Cell>
+                <Cell>
+                  {f.accountName ?? <span className="muted">none</span>}
+                  {f.accountName === null && <DocumentAccountHint fact={f} docs={docs.data} />}
+                </Cell>
                 <Cell numeric><FactAmount fact={f} /></Cell>
                 <td><Value>{factDateLabel(f)}</Value></td>
                 <Cell>
@@ -84,6 +87,15 @@ export function FactsPage({ filters }: { filters: Record<string, string> }) {
       )}
     </section>
   );
+}
+
+/** A fact recorded without an account whose document is linked to one: show the link, but don't treat it as the fact's account. */
+function DocumentAccountHint({ fact, docs }: { fact: FactDto; docs: DocumentDto[] | null }) {
+  const { accounts } = useRefData();
+  const linked = new Set((docs ?? []).filter((d) => fact.sources.some((s) => s.documentId === d.id)).flatMap((d) => d.accountIds));
+  const names = accounts.filter((a) => linked.has(a.id)).map((a) => a.displayName);
+  if (names.length === 0) return null;
+  return <div className="small muted">its document is linked to <Text>{names.join(", ")}</Text>; this number isn't. <a href={hrefFact(fact.id)}>Fix</a></div>;
 }
 
 // ---------------------------------------------------------------- history
