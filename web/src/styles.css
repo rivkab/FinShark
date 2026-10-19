@@ -89,6 +89,8 @@ tr.superseded td, tr.rejected td { color: #667085; }
 .docview .pdf-scroll, .review .pdf-scroll { max-height: 82vh; }
 .docview-head { display: flex; align-items: baseline; gap: 1rem; }
 .docview-head h1 { font-size: 1.2rem; margin: 0.4rem 0; }
+.docview-head .spacer { flex: 1; }
+.docview-head button { padding: 0.5rem 1rem; }
 .review-head { display: flex; align-items: baseline; gap: 0.75rem; }
 .review-head h1 { margin: 0.4rem 0; }
 .review-head .spacer { flex: 1; }

@@ -37,6 +37,8 @@ export function DocumentView({ id, factId }: { id: number; factId: number | null
   const [busy, setBusy] = useState(false);
   const [added, setAdded] = useState<ProposeFactResponse | null>(null);
   const addPanel = useRef<HTMLDivElement>(null);
+  const [statusBusy, setStatusBusy] = useState(false);
+  const [statusError, setStatusError] = useState<string | null>(null);
 
   useEffect(() => {
     setFocusedFactId(factId);
@@ -167,6 +169,19 @@ export function DocumentView({ id, factId }: { id: number; factId: number | null
     }
   };
 
+  const setStatus = async (status: "inbox" | "reviewed") => {
+    setStatusBusy(true);
+    try {
+      await mutate(() => apiFetch(`/api/documents/${id}`, { method: "PATCH", body: { status } satisfies UpdateDocumentRequest }));
+      setStatusError(null);
+      await Promise.all([detail.reload(), allDocs.reload()]);
+    } catch (e) {
+      setStatusError(errorText(e));
+    } finally {
+      setStatusBusy(false);
+    }
+  };
+
   if (detail.error) return <section><p><a href="#/documents">Back to documents</a></p><ErrorNote>{detail.error}</ErrorNote></section>;
   if (!doc) return <p>Loading...</p>;
 
@@ -177,6 +192,13 @@ export function DocumentView({ id, factId }: { id: number; factId: number | null
       <div className="docview-head">
         <a href="#/documents">All documents</a>
         <h1 dir="auto">{doc.originalFilename}</h1>
+        <span className="spacer" />
+        {statusError && <ErrorNote>{statusError}</ErrorNote>}
+        {doc.status === "reviewed" ? (
+          <button onClick={() => void setStatus("inbox")} disabled={statusBusy}>Move back to inbox</button>
+        ) : (
+          <button className="primary" onClick={() => void setStatus("reviewed")} disabled={statusBusy}>Mark reviewed</button>
+        )}
       </div>
       <div className="docview-grid">
         <div className="docview-pdf">
@@ -380,13 +402,6 @@ function DocDetails({ doc, onChanged }: { doc: DocumentDetailDto; onChanged: () 
         <ErrorNote>{error}</ErrorNote>
         <p>
           <button onClick={save} disabled={busy}>Save details</button> {saved && <span className="ok">Saved</span>}
-        </p>
-        <p>
-          {doc.status === "reviewed" ? (
-            <button onClick={() => void patch({ status: "inbox" }, false)} disabled={busy}>Move back to inbox</button>
-          ) : (
-            <button onClick={() => void patch({ status: "reviewed" }, false)} disabled={busy}>Mark reviewed</button>
-          )}
         </p>
         <div>
           <span className="label">Accounts</span>
