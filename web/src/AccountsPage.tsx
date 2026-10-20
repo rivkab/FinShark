@@ -22,7 +22,7 @@ import { sortInstitutions } from "./institutionSort.ts";
 import { sortAccounts, type AccountSortKey, type SortDir } from "./accountSort.ts";
 import { ACCOUNT_TYPE_LABEL, INSTITUTION_KIND_LABEL, currencyForCountry, languageForCountry } from "./labels.ts";
 import { Cell, Text, Value } from "./Value.tsx";
-import { ErrorNote, InstitutionName, AccountName, langLabel, useLoad } from "./ui.tsx";
+import { ErrorNote, InstitutionName, AccountName, Warning, langLabel, useLoad } from "./ui.tsx";
 
 export function AccountsPage() {
   const { institutions, accounts, people } = useRefData();
@@ -467,15 +467,28 @@ function AddInstitution() {
   );
 }
 
-function AddAccount() {
-  const { institutions, people, reload } = useRefData();
+/**
+ * `institutionId` preselects the institution (a document's, when adding from a document).
+ * `pickedText` is text boxed on a PDF, offered for the account number. `onCreated` runs after the account exists.
+ */
+export function AddAccount({
+  institutionId: preferredInstitutionId = null,
+  pickedText = null,
+  onCreated,
+}: {
+  institutionId?: number | null;
+  pickedText?: string | null;
+  onCreated?: (account: AccountDto) => void | Promise<void>;
+}) {
+  const { institutions, accounts, people, reload } = useRefData();
   const { mutate } = useActor();
   const [ownerIds, setOwnerIds] = useState<number[]>(people.length === 1 ? [people[0]!.id] : []);
   const sortedInstitutions = sortInstitutions(institutions.filter((i) => i.kind !== "employer"));
-  const [institutionId, setInstitutionId] = useState(String(sortedInstitutions[0]?.id ?? ""));
+  const firstInstitution = sortedInstitutions.find((i) => i.id === preferredInstitutionId) ?? sortedInstitutions[0];
+  const [institutionId, setInstitutionId] = useState(String(firstInstitution?.id ?? ""));
   const [displayName, setDisplayName] = useState("");
   const [altName, setAltName] = useState("");
-  const [currency, setCurrency] = useState(currencyForCountry(sortedInstitutions[0]?.country ?? "US"));
+  const [currency, setCurrency] = useState(currencyForCountry(firstInstitution?.country ?? "US"));
   const [openedOn, setOpenedOn] = useState("");
   const [closedOn, setClosedOn] = useState("");
   const [cadence, setCadence] = useState("");
@@ -512,7 +525,7 @@ function AddAccount() {
     };
     setBusy(true);
     try {
-      await mutate(() => apiFetch<AccountDto>("/api/accounts", { method: "POST", body }));
+      const created = await mutate(() => apiFetch<AccountDto>("/api/accounts", { method: "POST", body }));
       setDisplayName("");
       setAltName("");
       setAccountNumber("");
@@ -522,12 +535,15 @@ function AddAccount() {
       setClosedOn("");
       setError(null);
       await reload();
+      await onCreated?.(created);
     } catch (e) {
       setError(errorText(e));
     } finally {
       setBusy(false);
     }
   };
+
+  const sameNumber = accountNumber.trim() === "" ? undefined : accounts.find((a) => a.accountNumber === accountNumber.trim());
 
   return (
     <form className="panel fields" onSubmit={(e) => { e.preventDefault(); void submit(); }}>
@@ -570,8 +586,15 @@ function AddAccount() {
             <option value="irregular">Irregular</option>
           </select>
         </label>
-        <label><span>Account number</span><input type="text" dir="ltr" size={16} value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)} /></label>
+        <label>
+          <span>Account number</span>
+          <input type="text" dir="ltr" size={16} value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)} />
+          {pickedText && pickedText !== accountNumber.trim() && (
+            <button type="button" onClick={() => setAccountNumber(pickedText)}>Use boxed text: {pickedText}</button>
+          )}
+        </label>
       </div>
+      {sameNumber && <Warning>An account with this number already exists: {sameNumber.displayName} ({sameNumber.institutionName}).</Warning>}
       <div>
         <span className="label">Owner(s)</span>
         <OwnerPicker selected={ownerIds} onChange={setOwnerIds} />

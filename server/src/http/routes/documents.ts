@@ -259,6 +259,10 @@ export function registerDocumentRoutes(app: FastifyInstance, ctx: ApiContext): v
     const accountId = reqInt(jsonBody(req), "accountId");
     if (!ctx.db.prepare("SELECT 1 FROM accounts WHERE id = ?").get(accountId)) throw badRequest(`No such account: ${accountId}`);
     ctx.db.prepare("INSERT OR IGNORE INTO document_accounts (document_id, account_id) VALUES (?, ?)").run(id, accountId);
+    // A document with no institution takes its account's.
+    ctx.db
+      .prepare("UPDATE documents SET institution_id = (SELECT institution_id FROM accounts WHERE id = ?) WHERE id = ? AND institution_id IS NULL")
+      .run(accountId, id);
     return detail(ctx, id);
   });
 }

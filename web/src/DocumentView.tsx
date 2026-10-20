@@ -6,6 +6,7 @@ import { FactFormFields } from "./FactFields.tsx";
 import { applyConceptChange, buildProposeRequest, emptyFactForm, isMoney, mismatchWarning, validateFactForm, type FactFormState } from "./factForm.ts";
 import { PdfViewer, type PdfHighlight, type PdfSelection } from "./PdfViewer.tsx";
 import { hrefFact } from "./route.ts";
+import { AddAccount } from "./AccountsPage.tsx";
 import { conceptLabel, pickLabel } from "./labels.ts";
 import { findPreviousDocument, factDateLabel, periodLabel, suggestionsFromFacts, type Suggestion } from "./suggest.ts";
 import { sortInstitutions } from "./institutionSort.ts";
@@ -229,7 +230,7 @@ export function DocumentView({ id, factId }: { id: number; factId: number | null
         </div>
 
         <div className="docview-side">
-          <DocDetails doc={doc} onChanged={async () => { await Promise.all([detail.reload(), allDocs.reload()]); }} />
+          <DocDetails doc={doc} selectedText={draft?.text.trim() || null} onChanged={async () => { await Promise.all([detail.reload(), allDocs.reload()]); }} />
 
           <div className="panel" ref={addPanel}>
             <h3>Add a number</h3>
@@ -309,7 +310,7 @@ export function DocumentView({ id, factId }: { id: number; factId: number | null
 
 // ---------------------------------------------------------------- details
 
-function DocDetails({ doc, onChanged }: { doc: DocumentDetailDto; onChanged: () => Promise<void> }) {
+function DocDetails({ doc, selectedText, onChanged }: { doc: DocumentDetailDto; selectedText: string | null; onChanged: () => Promise<void> }) {
   const { institutions, docTypes, accounts } = useRefData();
   const { mutate } = useActor();
   const initial = () => ({
@@ -329,6 +330,16 @@ function DocDetails({ doc, onChanged }: { doc: DocumentDetailDto; onChanged: () 
   const [open, setOpen] = useState(doc.institutionId === null || doc.accountIds.length === 0 || (doc.periodEnd === null && doc.taxYear === null));
   useEffect(() => setF(initial()), // eslint-disable-line react-hooks/exhaustive-deps
     [doc.id, doc.institutionId, doc.docType, doc.language, doc.issuedOn, doc.periodStart, doc.periodEnd, doc.taxYear]);
+
+  // Documents linked to accounts before this existed: fill in the institution when the accounts agree on one.
+  const linkedInstitutions = [...new Set(doc.accountIds.map((aid) => accounts.find((a) => a.id === aid)?.institutionId))];
+  const inferredInstitution = doc.institutionId === null && linkedInstitutions.length === 1 ? linkedInstitutions[0] : undefined;
+  useEffect(() => {
+    if (inferredInstitution === undefined) return;
+    void mutate(() => apiFetch(`/api/documents/${doc.id}`, { method: "PATCH", body: { institutionId: inferredInstitution } satisfies UpdateDocumentRequest }))
+      .then(onChanged)
+      .catch((e) => setError(errorText(e)));
+  }, [doc.id, inferredInstitution]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const patch = async (body: UpdateDocumentRequest, flashSaved: boolean) => {
     setBusy(true);
@@ -365,11 +376,11 @@ function DocDetails({ doc, onChanged }: { doc: DocumentDetailDto; onChanged: () 
     setF({ ...f, ...p });
   };
 
-  const link = async () => {
-    if (linkId === "") return;
+  const link = async (accountId = Number(linkId)) => {
+    if (!accountId) return;
     setBusy(true);
     try {
-      await mutate(() => apiFetch(`/api/documents/${doc.id}/accounts`, { method: "POST", body: { accountId: Number(linkId) } }));
+      await mutate(() => apiFetch(`/api/documents/${doc.id}/accounts`, { method: "POST", body: { accountId } }));
       setLinkId("");
       await onChanged();
     } catch (e) {
@@ -435,6 +446,11 @@ function DocDetails({ doc, onChanged }: { doc: DocumentDetailDto; onChanged: () 
             <AccountSelect accounts={accounts.filter((a) => !doc.accountIds.includes(a.id))} institutionId={doc.institutionId} value={linkId} onChange={setLinkId} noneLabel="Link an account..." />
             <button onClick={() => void link()} disabled={busy || linkId === ""}>Link account</button>
           </div>
+          <details>
+            <summary>Create an account from this document</summary>
+            <p className="muted small">Drag a box around the account number on the PDF, then use the boxed text below. The new account is linked to this document.</p>
+            <AddAccount institutionId={doc.institutionId} pickedText={selectedText} onCreated={(a) => link(a.id)} />
+          </details>
         </div>
       </div>
     </details>

@@ -138,6 +138,9 @@ describe("full flow", () => {
     expect(withIdent.identifiers).toMatchObject([{ kind: "last4", value: "4821" }]);
     expect((await call("GET", "/api/accounts")).json().accounts).toHaveLength(1);
 
+    // Linking an account gives an institution-less document the account's institution.
+    const linkDoc = await call("POST", `/api/documents/${documentId}/accounts`, { accountId: acct.json().id });
+    expect(linkDoc.json().institutionId).toBe(inst.id);
     const patched = await call("PATCH", `/api/documents/${documentId}`, { institutionId: inst.id, docType: "doc_type/bank_statement", periodStart: "2025-01-01", periodEnd: "2025-12-31", status: "reviewed" });
     // doc type slugs are seed data; accept either a valid term or a clean 400
     if (patched.statusCode === 200) expect(patched.json()).toMatchObject({ institutionId: inst.id, status: "reviewed", periodEnd: "2025-12-31" });
