@@ -5,7 +5,7 @@ import { useActor, useRefData } from "./context.tsx";
 import { FactFormFields } from "./FactFields.tsx";
 import { applyConceptChange, buildProposeRequest, emptyFactForm, isMoney, mismatchWarning, validateFactForm, type FactFormState } from "./factForm.ts";
 import { PdfViewer, type PdfHighlight, type PdfSelection } from "./PdfViewer.tsx";
-import { hrefFact } from "./route.ts";
+import { hrefDocuments, hrefFact } from "./route.ts";
 import { AddAccount } from "./AccountsPage.tsx";
 import { conceptLabel, pickLabel } from "./labels.ts";
 import { findPreviousDocument, factDateLabel, periodLabel, suggestionsFromFacts, type Suggestion } from "./suggest.ts";
@@ -188,6 +188,10 @@ export function DocumentView({ id, factId }: { id: number; factId: number | null
     try {
       await mutate(() => apiFetch(`/api/documents/${id}`, { method: "PATCH", body: { status } satisfies UpdateDocumentRequest }));
       setStatusError(null);
+      if (status === "reviewed") {
+        window.location.hash = hrefDocuments();
+        return;
+      }
       await Promise.all([detail.reload(), allDocs.reload()]);
     } catch (e) {
       setStatusError(errorText(e));
