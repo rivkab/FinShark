@@ -5,6 +5,7 @@ import type { DatabaseSync } from "node:sqlite";
 import { documentRelativePath, resolveInVault, type VaultLayout } from "../vault/layout.ts";
 import { sha256File } from "./hash.ts";
 import { detectLanguage } from "./language.ts";
+import { extractPeriod, periodFill } from "./period.ts";
 import { extractWithPdfjs, getTextLayer, type ExtractFn } from "./text-layer.ts";
 
 export interface ImportDeps {
@@ -150,8 +151,8 @@ export async function importDocument(
   const insertDoc = db.prepare(
     `INSERT INTO documents (sha256, stored_path, original_filename, byte_size, mime, page_count, imported_at,
        doc_type, institution_id, language, issued_on, period_start, period_end, tax_year,
-       identity_key, text_fingerprint, status)
-     VALUES (?, ?, ?, ?, 'application/pdf', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'inbox')`,
+       identity_key, text_fingerprint, status, metadata)
+     VALUES (?, ?, ?, ?, 'application/pdf', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'inbox', ?)`,
   );
   const insertPage = db.prepare(
     `INSERT INTO document_pages (document_id, page_no, width_pt, height_pt, rotation, text_source, text_sha256)
@@ -183,6 +184,12 @@ export async function importDocument(
               .all(opts.identityKey),
           );
 
+    // Dates the caller did not give are read from the text; the source is kept for checking.
+    const given = { period_start: opts.periodStart ?? null, period_end: opts.periodEnd ?? null, tax_year: opts.taxYear ?? null };
+    const found = extractPeriod(text);
+    const fill = found ? periodFill(given, found) : null;
+    const metadata = fill && found ? { periodSource: found.source } : {};
+
     const res = insertDoc.run(
       sha256,
       storedPath,
@@ -194,11 +201,12 @@ export async function importDocument(
       opts.institutionId ?? null,
       opts.language ?? detectLanguage(text),
       opts.issuedOn ?? null,
-      opts.periodStart ?? null,
-      opts.periodEnd ?? null,
-      opts.taxYear ?? null,
+      given.period_start ?? fill?.period_start ?? null,
+      given.period_end ?? fill?.period_end ?? null,
+      given.tax_year ?? fill?.tax_year ?? null,
       opts.identityKey ?? null,
       text.textFingerprint,
+      JSON.stringify(metadata),
     );
     const documentId = Number(res.lastInsertRowid);
     for (const p of text.pages) {
