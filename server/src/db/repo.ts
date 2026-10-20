@@ -131,13 +131,14 @@ export interface NewInstitution {
   country: string;
   altName?: string;
   language?: Language; // default from country
+  kind?: string;
 }
 
 export function insertInstitution(db: DatabaseSync, clock: Clock, i: NewInstitution): number {
   const country = i.country.toUpperCase();
   const r = db
-    .prepare("INSERT INTO institutions (name, alt_name, country, language, created_at) VALUES (?, ?, ?, ?, ?)")
-    .run(i.name, i.altName ?? null, country, i.language ?? defaultLanguageForCountry(country), iso(clock));
+    .prepare("INSERT INTO institutions (name, alt_name, country, language, kind, created_at) VALUES (?, ?, ?, ?, ?, ?)")
+    .run(i.name, i.altName ?? null, country, i.language ?? defaultLanguageForCountry(country), i.kind ?? null, iso(clock));
   return Number(r.lastInsertRowid);
 }
 

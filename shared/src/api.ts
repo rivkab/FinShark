@@ -14,6 +14,7 @@
 //   POST /api/people          CreatePersonRequest        -> 201 PersonDto
 //   GET  /api/institutions                   -> { institutions: InstitutionDto[] }
 //   POST /api/institutions    CreateInstitutionRequest   -> 201 InstitutionDto
+//   PUT  /api/institutions/:id/kind          SetInstitutionKindRequest -> InstitutionDto
 //   GET  /api/accounts                       -> { accounts: AccountDto[] }
 //   POST /api/accounts        CreateAccountRequest       -> 201 AccountDto
 //   POST /api/accounts/:id/identifiers  AddIdentifierRequest -> 201 AccountDto
@@ -83,16 +84,26 @@ export interface CreatePersonRequest {
   displayName: string;
 }
 
+/** A financial institution holds accounts (bank, broker, fund, insurer); an employer issues pay documents. */
+export const INSTITUTION_KINDS = ["financial", "employer"] as const;
+export type InstitutionKind = (typeof INSTITUTION_KINDS)[number];
+
 export interface InstitutionDto {
   id: number;
   name: string;
   altName: string | null;
   country: string;
   language: Language;
+  /** Null for institutions created before kinds existed. */
+  kind: InstitutionKind | null;
+}
+export interface SetInstitutionKindRequest {
+  kind: InstitutionKind | null;
 }
 export interface CreateInstitutionRequest {
   name: string;
   country: string;
+  kind?: InstitutionKind;
   altName?: string;
   /** Default from country (IL -> he, otherwise en). */
   language?: Language;

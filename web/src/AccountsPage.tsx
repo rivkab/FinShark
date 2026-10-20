@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ACCOUNT_TYPES, type AccountType } from "@finshark/shared";
+import { ACCOUNT_TYPES, INSTITUTION_KINDS, type AccountType, type InstitutionKind } from "@finshark/shared";
 import type {
   AccountDto,
   CreateAccountRequest,
@@ -20,7 +20,7 @@ import { useActor, useRefData } from "./context.tsx";
 import { buildAttestationRequest, validateAttestation, type AttestationForm } from "./factForm.ts";
 import { sortInstitutions } from "./institutionSort.ts";
 import { sortAccounts, type AccountSortKey, type SortDir } from "./accountSort.ts";
-import { ACCOUNT_TYPE_LABEL, currencyForCountry, languageForCountry } from "./labels.ts";
+import { ACCOUNT_TYPE_LABEL, INSTITUTION_KIND_LABEL, currencyForCountry, languageForCountry } from "./labels.ts";
 import { Cell, Text, Value } from "./Value.tsx";
 import { ErrorNote, InstitutionName, AccountName, langLabel, useLoad } from "./ui.tsx";
 
@@ -61,7 +61,7 @@ export function AccountsPage() {
           </tbody>
         </table>
       )}
-      {institutions.length > 0 && <AddAccount />}
+      {institutions.some((i) => i.kind !== "employer") && <AddAccount />}
 
       <h2>Institutions</h2>
       {institutions.length === 0 ? (
@@ -69,15 +69,11 @@ export function AccountsPage() {
       ) : (
         <table className="data">
           <thead>
-            <tr><th>Name</th><th>Country</th><th>Language</th></tr>
+            <tr><th>Name</th><th>Kind</th><th>Country</th><th>Language</th><th /></tr>
           </thead>
           <tbody>
             {sortInstitutions(institutions).map((i) => (
-              <tr key={i.id}>
-                <Cell><InstitutionName inst={i} /></Cell>
-                <td>{i.country}</td>
-                <td>{langLabel(i.language)}</td>
-              </tr>
+              <InstitutionRow key={i.id} inst={i} />
             ))}
           </tbody>
         </table>
@@ -350,6 +346,62 @@ function Attest({ account, onDone }: { account: AccountDto; onDone: () => void }
   );
 }
 
+function InstitutionRow({ inst }: { inst: InstitutionDto }) {
+  const { reload } = useRefData();
+  const { mutate } = useActor();
+  const [editing, setEditing] = useState(false);
+  const [kind, setKind] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const startEdit = () => {
+    setKind(inst.kind ?? "");
+    setError(null);
+    setEditing(true);
+  };
+  const save = async () => {
+    setBusy(true);
+    try {
+      if (kind !== (inst.kind ?? "")) {
+        await mutate(() => apiFetch<InstitutionDto>(`/api/institutions/${inst.id}/kind`, { method: "PUT", body: { kind: kind === "" ? null : kind } }));
+        await reload();
+      }
+      setEditing(false);
+    } catch (e) {
+      setError(errorText(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <tr>
+      <Cell><InstitutionName inst={inst} /></Cell>
+      <td>
+        {editing ? (
+          <select value={kind} onChange={(e) => setKind(e.target.value)}>
+            <option value="">Not set</option>
+            {INSTITUTION_KINDS.map((k) => <option key={k} value={k}>{INSTITUTION_KIND_LABEL[k]}</option>)}
+          </select>
+        ) : inst.kind ? INSTITUTION_KIND_LABEL[inst.kind] : <span className="muted">not set</span>}
+      </td>
+      <td>{inst.country}</td>
+      <td>{langLabel(inst.language)}</td>
+      <td>
+        {editing ? (
+          <>
+            <button type="button" onClick={() => void save()} disabled={busy}>Save</button>{" "}
+            <button type="button" onClick={() => setEditing(false)} disabled={busy}>Cancel</button>
+            <ErrorNote>{error}</ErrorNote>
+          </>
+        ) : (
+          <button type="button" onClick={startEdit}>Edit</button>
+        )}
+      </td>
+    </tr>
+  );
+}
+
 function AddInstitution() {
   const { reload } = useRefData();
   const { mutate } = useActor();
@@ -357,12 +409,14 @@ function AddInstitution() {
   const [altName, setAltName] = useState("");
   const [country, setCountry] = useState("US");
   const [language, setLanguage] = useState<Language>("en");
+  const [kind, setKind] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   const submit = async () => {
     if (name.trim() === "") return setError("Enter the institution's name.");
-    const body: CreateInstitutionRequest = { name: name.trim(), country, language, ...(altName.trim() ? { altName: altName.trim() } : {}) };
+    if (kind === "") return setError("Choose whether it is a financial institution or an employer.");
+    const body: CreateInstitutionRequest = { name: name.trim(), country, language, kind: kind as InstitutionKind, ...(altName.trim() ? { altName: altName.trim() } : {}) };
     setBusy(true);
     try {
       await mutate(() => apiFetch<InstitutionDto>("/api/institutions", { method: "POST", body }));
@@ -385,6 +439,13 @@ function AddInstitution() {
         <label className="grow"><span>Name in the other language (optional)</span><input type="text" dir="auto" value={altName} onChange={(e) => setAltName(e.target.value)} /></label>
       </div>
       <div className="row">
+        <label>
+          <span>Kind</span>
+          <select value={kind} onChange={(e) => setKind(e.target.value)}>
+            <option value="">Choose…</option>
+            {INSTITUTION_KINDS.map((k) => <option key={k} value={k}>{INSTITUTION_KIND_LABEL[k]}</option>)}
+          </select>
+        </label>
         <label>
           <span>Country</span>
           <select value={country} onChange={(e) => { setCountry(e.target.value); setLanguage(languageForCountry(e.target.value)); }}>
@@ -410,7 +471,7 @@ function AddAccount() {
   const { institutions, people, reload } = useRefData();
   const { mutate } = useActor();
   const [ownerIds, setOwnerIds] = useState<number[]>(people.length === 1 ? [people[0]!.id] : []);
-  const sortedInstitutions = sortInstitutions(institutions);
+  const sortedInstitutions = sortInstitutions(institutions.filter((i) => i.kind !== "employer"));
   const [institutionId, setInstitutionId] = useState(String(sortedInstitutions[0]?.id ?? ""));
   const [displayName, setDisplayName] = useState("");
   const [altName, setAltName] = useState("");

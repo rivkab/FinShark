@@ -996,3 +996,13 @@ and the fact page offers Verify (retry), Correct, and Reopen for rejected facts.
 Rejecting a proposed fact has no button in the web app now; correct it instead.
 Queries still exclude unverified facts by default, so a conflicted fact is surfaced,
 not silently used.
+
+### D12. Institutions are financial institutions or employers (2026-10-20)
+
+`institutions.kind` is `financial` (bank, broker, fund, insurer: it holds accounts) or
+`employer` (it issues pay documents such as payslips and W-2s). The list is
+`INSTITUTION_KINDS` in `shared/src/api.ts`, validated by the API, not a CHECK. It is
+nullable because earlier institutions have none, and we do not guess: the Institutions
+table shows "Not set" and the kind can be changed there (`PUT /api/institutions/:id/kind`).
+The Add institution form requires a kind. The Add account picker lists only institutions
+that are not employers. Documents can still be linked to either kind.

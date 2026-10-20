@@ -3,6 +3,8 @@ import type { FastifyInstance } from "fastify";
 import { Decimal } from "decimal.js";
 import {
   ACCOUNT_TYPES,
+  INSTITUTION_KINDS,
+  type InstitutionKind,
   isKnownCurrency,
   type AccountDto,
   type AccountOwnerDto,
@@ -37,6 +39,7 @@ function instDto(r: Row): InstitutionDto {
     altName: (r["alt_name"] as string | null) ?? null,
     country: String(r["country"]),
     language: r["language"] as Language,
+    kind: (r["kind"] as InstitutionKind | null) ?? null,
   };
 }
 
@@ -181,13 +184,26 @@ export function registerReferenceRoutes(app: FastifyInstance, ctx: ApiContext): 
     if (!/^[A-Za-z]{2}$/.test(country)) throw badRequest("country must be a 2-letter ISO 3166-1 code.");
     const altName = optStr(o, "altName");
     const language = optEnum<Language>(o, "language", ["en", "he"]);
+    const kind = optEnum<InstitutionKind>(o, "kind", INSTITUTION_KINDS);
     const id = insertInstitution(db, ctx.now, {
       name: reqStr(o, "name").trim(),
       country,
       ...(altName !== undefined ? { altName } : {}),
       ...(language !== undefined ? { language } : {}),
+      ...(kind !== undefined ? { kind } : {}),
     });
     return reply.code(201).send(instDto(db.prepare("SELECT * FROM institutions WHERE id = ?").get(id) as Row));
+  });
+
+  app.put("/api/institutions/:id/kind", async (req) => {
+    const id = idParam(req);
+    if (!db.prepare("SELECT 1 FROM institutions WHERE id = ?").get(id)) throw notFound("Institution");
+    const o = jsonBody(req);
+    // null clears the kind; anything else must be one of INSTITUTION_KINDS.
+    const kind = o["kind"] === null ? null : optEnum<InstitutionKind>(o, "kind", INSTITUTION_KINDS);
+    if (kind === undefined) throw badRequest("kind is required (use null to clear it).");
+    db.prepare("UPDATE institutions SET kind = ? WHERE id = ?").run(kind, id);
+    return instDto(db.prepare("SELECT * FROM institutions WHERE id = ?").get(id) as Row);
   });
 
   app.get("/api/accounts", async () => ({ accounts: loadAccounts(ctx) }));

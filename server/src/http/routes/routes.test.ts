@@ -123,7 +123,12 @@ describe("full flow", () => {
     // Institution (language defaults per D3) and account.
     const il = (await call("POST", "/api/institutions", { name: "בנק לדוגמה", country: "il" })).json();
     expect(il).toMatchObject({ country: "IL", language: "he" });
-    const inst = (await call("POST", "/api/institutions", { name: "Example Brokerage", country: "US" })).json();
+    const inst = (await call("POST", "/api/institutions", { name: "Example Brokerage", country: "US", kind: "financial" })).json();
+    expect(inst.kind).toBe("financial");
+    expect((await call("PUT", `/api/institutions/${inst.id}/kind`, { kind: "employer" })).json().kind).toBe("employer");
+    expect((await call("PUT", `/api/institutions/${inst.id}/kind`, { kind: "bank" })).statusCode).toBe(400);
+    expect((await call("PUT", `/api/institutions/${inst.id}/kind`, { kind: "financial" })).json().kind).toBe("financial");
+    expect((await call("POST", "/api/institutions", { name: "Old", country: "US" })).json().kind).toBeNull();
     expect(inst.language).toBe("en");
     const acct = await call("POST", "/api/accounts", { institutionId: inst.id, displayName: "Brokerage 4821", nativeCurrency: "USD", owners: [{ personId: 1 }] });
     expect(acct.statusCode).toBe(201);

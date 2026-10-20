@@ -1,5 +1,5 @@
 // Label and picker helpers (DESIGN §14 D3). Pure functions, unit-tested.
-import type { AccountDto, AccountType, ConceptDto, Language } from "@finshark/shared";
+import type { AccountDto, AccountType, ConceptDto, InstitutionKind, Language } from "@finshark/shared";
 
 /** English label for an account type (UI chrome is English, DESIGN D3). */
 export const ACCOUNT_TYPE_LABEL: Readonly<Record<AccountType, string>> = {
@@ -15,6 +15,12 @@ export const ACCOUNT_TYPE_LABEL: Readonly<Record<AccountType, string>> = {
   mortgage: "Mortgage",
   insurance: "Insurance",
   other: "Other",
+};
+
+/** English label for an institution kind. */
+export const INSTITUTION_KIND_LABEL: Readonly<Record<InstitutionKind, string>> = {
+  financial: "Financial institution (bank, broker, fund)",
+  employer: "Employer",
 };
 
 /** Hebrew label when the surrounding context is Hebrew and a Hebrew label exists, otherwise English. */
