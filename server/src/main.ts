@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 import { existsSync } from "node:fs";
 import { buildServer } from "./http/server.ts";
 import { choosePort, DEFAULT_PORT, isLoopbackPortFree, listenLoopback, LOOPBACK } from "./http/listen.ts";
+import { fillMissingLanguages } from "./documents/language.ts";
 import { vaultLayout } from "./vault/layout.ts";
 import { createVault, openVault } from "./vault/vault.ts";
 
@@ -82,6 +83,11 @@ try {
   vault.close();
   fail(e instanceof Error ? e.message : String(e));
 }
+
+// Documents imported before language detection existed: fill in what the text layer shows.
+void fillMissingLanguages(vault)
+  .then((n) => { if (n > 0) console.log(`Set the language of ${n} document${n === 1 ? "" : "s"} from their text.`); })
+  .catch((e) => console.error(`Could not detect document languages: ${e instanceof Error ? e.message : String(e)}`));
 
 const link = `http://${LOOPBACK}:${port}/auth?token=${token}`;
 console.log(`FinShark is running at http://${LOOPBACK}:${port} — open this link to sign in:\n\n  ${link}\n`);

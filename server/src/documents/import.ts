@@ -4,6 +4,7 @@ import path from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import { documentRelativePath, resolveInVault, type VaultLayout } from "../vault/layout.ts";
 import { sha256File } from "./hash.ts";
+import { detectLanguage } from "./language.ts";
 import { extractWithPdfjs, getTextLayer, type ExtractFn } from "./text-layer.ts";
 
 export interface ImportDeps {
@@ -191,7 +192,7 @@ export async function importDocument(
       importedAt.toISOString(),
       opts.docType ?? null,
       opts.institutionId ?? null,
-      opts.language ?? null,
+      opts.language ?? detectLanguage(text),
       opts.issuedOn ?? null,
       opts.periodStart ?? null,
       opts.periodEnd ?? null,
