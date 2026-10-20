@@ -12,6 +12,7 @@
 // Endpoints (all under the security hooks; JSON unless noted)
 //   GET  /api/people                         -> { people: PersonDto[] }
 //   POST /api/people          CreatePersonRequest        -> 201 PersonDto
+//   PUT  /api/people/:id/roles               SetPersonRolesRequest -> PersonDto
 //   GET  /api/institutions                   -> { institutions: InstitutionDto[] }
 //   POST /api/institutions    CreateInstitutionRequest   -> 201 InstitutionDto
 //   PUT  /api/institutions/:id/kind          SetInstitutionKindRequest -> InstitutionDto
@@ -79,9 +80,20 @@ export type DocumentStatus = "inbox" | "reviewed" | "removed";
 export interface PersonDto {
   id: number;
   displayName: string;
+  /** Can be an account owner, or the subject of a person-level fact. */
+  ownsAccounts: boolean;
+  /** Can be chosen as the person using FinShark, and so appears in history. */
+  usesApp: boolean;
 }
 export interface CreatePersonRequest {
   displayName: string;
+  /** Default true. At least one of the two must be true. */
+  ownsAccounts?: boolean;
+  usesApp?: boolean;
+}
+export interface SetPersonRolesRequest {
+  ownsAccounts: boolean;
+  usesApp: boolean;
 }
 
 /** A financial institution holds accounts (bank, broker, fund, insurer); an employer issues pay documents. */

@@ -20,7 +20,7 @@ export interface ServerDeps {
 /** The app with all security hooks, the people check and the API routes wired to a vault. */
 export function buildServer(deps: ServerDeps): FastifyInstance {
   const { db, layout } = deps.vault;
-  const isPerson = db.prepare("SELECT 1 FROM people WHERE id = ?");
+  const isPerson = db.prepare("SELECT 1 FROM people WHERE id = ? AND uses_app = 1");
   return buildApp({
     port: deps.port,
     token: deps.token,

@@ -321,7 +321,6 @@ function DocDetails({ doc, selectedText, onChanged }: { doc: DocumentDetailDto; 
     institutionId: doc.institutionId === null ? "" : String(doc.institutionId),
     docType: doc.docType ?? "",
     language: doc.language ?? "",
-    issuedOn: doc.issuedOn ?? "",
     periodStart: doc.periodStart ?? "",
     periodEnd: doc.periodEnd ?? "",
     taxYear: doc.taxYear === null ? "" : String(doc.taxYear),
@@ -333,7 +332,7 @@ function DocDetails({ doc, selectedText, onChanged }: { doc: DocumentDetailDto; 
   const [linkId, setLinkId] = useState("");
   const [open, setOpen] = useState(doc.institutionId === null || doc.accountIds.length === 0 || (doc.periodEnd === null && doc.taxYear === null));
   useEffect(() => setF(initial()), // eslint-disable-line react-hooks/exhaustive-deps
-    [doc.id, doc.institutionId, doc.docType, doc.language, doc.issuedOn, doc.periodStart, doc.periodEnd, doc.taxYear]);
+    [doc.id, doc.institutionId, doc.docType, doc.language, doc.periodStart, doc.periodEnd, doc.taxYear]);
 
   // Documents linked to accounts before this existed: fill in the institution when the accounts agree on one.
   const linkedInstitutions = [...new Set(doc.accountIds.map((aid) => accounts.find((a) => a.id === aid)?.institutionId))];
@@ -366,7 +365,6 @@ function DocDetails({ doc, selectedText, onChanged }: { doc: DocumentDetailDto; 
         institutionId: f.institutionId === "" ? null : Number(f.institutionId),
         docType: f.docType === "" ? null : f.docType,
         language: f.language === "" ? null : (f.language as Language),
-        issuedOn: f.issuedOn === "" ? null : f.issuedOn,
         periodStart: f.periodStart === "" ? null : f.periodStart,
         periodEnd: f.periodEnd === "" ? null : f.periodEnd,
         taxYear: f.taxYear === "" ? null : Number(f.taxYear),
@@ -433,7 +431,6 @@ function DocDetails({ doc, selectedText, onChanged }: { doc: DocumentDetailDto; 
         </div>
         <div className="row">
           <label><span>Tax year</span><input type="text" size={6} maxLength={4} value={f.taxYear} onChange={(e) => set({ taxYear: e.target.value })} /></label>
-          <label><span>Issued on</span><input type="date" value={f.issuedOn} onChange={(e) => set({ issuedOn: e.target.value })} /></label>
         </div>
         <ErrorNote>{error}</ErrorNote>
         <p>
@@ -448,7 +445,7 @@ function DocDetails({ doc, selectedText, onChanged }: { doc: DocumentDetailDto; 
           })}
           <div className="row">
             <AccountSelect accounts={accounts.filter((a) => !doc.accountIds.includes(a.id))} institutionId={doc.institutionId} value={linkId} onChange={setLinkId} noneLabel="Link an account..." />
-            <button onClick={() => void link()} disabled={busy || linkId === ""}>Link account</button>
+            {linkId !== "" && <button onClick={() => void link()} disabled={busy}>Link account</button>}
           </div>
           <details>
             <summary>Create an account from this document</summary>

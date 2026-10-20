@@ -76,7 +76,7 @@ describe("person handling", () => {
       expect(res.json()).toMatchObject({ error: "choose_person" });
     }
     expect((await call("POST", "/api/people", { displayName: "Dana" })).statusCode).toBe(201);
-    expect((await call("GET", "/api/people")).json().people).toEqual([{ id: 1, displayName: "Dana" }]);
+    expect((await call("GET", "/api/people")).json().people).toEqual([{ id: 1, displayName: "Dana", ownsAccounts: true, usesApp: true }]);
     // reads are fine
     expect((await call("GET", "/api/review-queue")).statusCode).toBe(200);
   });
@@ -93,6 +93,33 @@ describe("person handling", () => {
     expect(noCookie.statusCode).toBe(401);
     const noCsrf = await app.inject({ method: "POST", url: "/api/people", headers: { host: HOST, cookie, "content-type": "application/json" }, payload: "{}" });
     expect(noCsrf.statusCode).toBe(403);
+  });
+});
+
+describe("people roles", () => {
+  it("separates account owners from people who use FinShark", async () => {
+    const dana = await choosePerson();
+    const kid = (await call("POST", "/api/people", { displayName: "Kid", usesApp: false })).json();
+    expect(kid).toMatchObject({ ownsAccounts: true, usesApp: false });
+    expect((await call("POST", "/api/people", { displayName: "Nobody", ownsAccounts: false, usesApp: false })).statusCode).toBe(400);
+
+    // Only people who use FinShark can be chosen.
+    expect((await call("POST", "/api/session/person", { personId: String(kid.id) })).statusCode).toBe(400);
+
+    // Only people who own accounts can own one.
+    const helper = (await call("POST", "/api/people", { displayName: "Helper", ownsAccounts: false })).json();
+    const inst = (await call("POST", "/api/institutions", { name: "Bank", country: "US", kind: "financial" })).json();
+    const acct = (owner: number) => call("POST", "/api/accounts", { institutionId: inst.id, displayName: "A", nativeCurrency: "USD", owners: [{ personId: owner }] });
+    expect((await acct(helper.id)).statusCode).toBe(400);
+    const created = await acct(kid.id);
+    expect(created.statusCode).toBe(201);
+
+    // Roles cannot be removed from under an owner or from the person using the app.
+    const roles = (id: number, body: object) => call("PUT", `/api/people/${id}/roles`, body);
+    expect((await roles(kid.id, { ownsAccounts: false, usesApp: true })).json()).toMatchObject({ error: "person_owns_accounts" });
+    expect((await roles(dana, { ownsAccounts: true, usesApp: false })).json()).toMatchObject({ error: "person_is_using" });
+    expect((await roles(dana, { ownsAccounts: false, usesApp: false })).statusCode).toBe(400);
+    expect((await roles(helper.id, { ownsAccounts: true, usesApp: true })).json()).toMatchObject({ ownsAccounts: true, usesApp: true });
   });
 });
 

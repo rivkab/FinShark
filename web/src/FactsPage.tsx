@@ -107,6 +107,7 @@ export function FactHistory({ id }: { id: number }) {
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState<FactFormState | null>(null);
   const [busy, setBusy] = useState(false);
+  const [deleteReason, setDeleteReason] = useState<string | null>(null);
 
   if (detail.error) return <section><p><a href="#/facts">All facts</a></p><ErrorNote>{detail.error}</ErrorNote></section>;
   if (!detail.data) return <p>Loading...</p>;
@@ -120,6 +121,21 @@ export function FactHistory({ id }: { id: number }) {
       await detail.reload();
     } catch (e) {
       setError(errorText(e));
+    }
+  };
+  const remove = async () => {
+    if (busy || deleteReason === null) return;
+    if (deleteReason.trim() === "") return setError("Say why this number is being deleted.");
+    setBusy(true);
+    try {
+      await mutate(() => apiFetch(`/api/facts/${id}/reject`, { method: "POST", body: { reason: deleteReason.trim() } }));
+      setError(null);
+      setDeleteReason(null);
+      await detail.reload();
+    } catch (e) {
+      setError(errorText(e));
+    } finally {
+      setBusy(false);
     }
   };
   const verify = async () => {
@@ -175,6 +191,22 @@ export function FactHistory({ id }: { id: number }) {
         {f.status === "proposed" && !form && <p><button className="primary" onClick={() => void verify()} disabled={busy}>Verify</button></p>}
         {(f.status === "proposed" || f.status === "verified") && !form && (
           <p><button onClick={() => { setError(null); setForm(formFromFact(f)); }}>Correct this number</button></p>
+        )}
+        {(f.status === "proposed" || f.status === "verified") && !form && deleteReason === null && (
+          <p><button onClick={() => { setError(null); setDeleteReason(""); }}>Delete this number</button></p>
+        )}
+        {deleteReason !== null && (
+          <form onSubmit={(e) => { e.preventDefault(); void remove(); }}>
+            <h3>Delete this number</h3>
+            <p className="muted small">
+              The number is marked rejected and no longer used in answers. It stays in the history, and you can reopen it later.
+            </p>
+            <label><span>Why</span><input type="text" size={40} autoFocus value={deleteReason} onChange={(e) => setDeleteReason(e.target.value)} /></label>
+            <p>
+              <button type="submit" className="primary" disabled={busy}>Delete</button>{" "}
+              <button type="button" disabled={busy} onClick={() => { setDeleteReason(null); setError(null); }}>Cancel</button>
+            </p>
+          </form>
         )}
         {form && (
           <form onSubmit={(e) => { e.preventDefault(); void submitCorrection(true); }}>

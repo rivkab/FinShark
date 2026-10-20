@@ -66,7 +66,7 @@ export function App() {
         <h1>Who's using FinShark?</h1>
         <p>This records who verifies and changes things. It is not a password.</p>
         <div className="people">
-          {people.map((p) => (
+          {people.filter((p) => p.usesApp).map((p) => (
             <button
               key={p.id}
               onClick={() => setActingPerson(String(p.id)).then(() => setPersonId(String(p.id)), () => setError("Could not save your choice."))}

@@ -125,7 +125,9 @@ function ownersField(ctx: ApiContext, o: Json): AccountOwnerInput[] {
     if (typeof item !== "object" || item === null || Array.isArray(item)) throw badRequest("Each owner must be an object.");
     const e = item as Json;
     const personId = reqInt(e, "personId");
-    if (!ctx.db.prepare("SELECT 1 FROM people WHERE id = ?").get(personId)) throw badRequest(`No such person: ${personId}`);
+    const person = ctx.db.prepare("SELECT owns_accounts FROM people WHERE id = ?").get(personId) as Row | undefined;
+    if (!person) throw badRequest(`No such person: ${personId}`);
+    if (person["owns_accounts"] !== 1) throw badRequest(`This person is not marked as an account owner: ${personId}`);
     const role = optEnum(e, "role", OWNER_ROLES) ?? "owner";
     let share: string | null = null;
     const rawShare = e["share"];
@@ -156,10 +158,21 @@ function optDate(o: Json, k: string): string | undefined {
 export function registerReferenceRoutes(app: FastifyInstance, ctx: ApiContext): void {
   const { db } = ctx;
 
+  const personDto = (r: Row): PersonDto => ({
+    id: Number(r["id"]),
+    displayName: String(r["display_name"]),
+    ownsAccounts: r["owns_accounts"] === 1,
+    usesApp: r["uses_app"] === 1,
+  });
+  const boolField = (o: Json, k: string): boolean | undefined => {
+    const v = o[k];
+    if (v === undefined) return undefined;
+    if (typeof v !== "boolean") throw badRequest(`${k} must be true or false.`);
+    return v;
+  };
+
   app.get("/api/people", async () => ({
-    people: (db.prepare("SELECT id, display_name FROM people ORDER BY id").all() as Row[]).map(
-      (r): PersonDto => ({ id: Number(r["id"]), displayName: String(r["display_name"]) }),
-    ),
+    people: (db.prepare("SELECT * FROM people ORDER BY id").all() as Row[]).map(personDto),
   }));
 
   app.post("/api/people", async (req, reply) => {
@@ -170,8 +183,30 @@ export function registerReferenceRoutes(app: FastifyInstance, ctx: ApiContext): 
       (r) => String(r["display_name"]).toLocaleLowerCase() === name.toLocaleLowerCase(),
     );
     if (taken) throw new HttpError(409, "duplicate_name", `There is already someone called ${name}.`);
-    const id = insertPerson(db, ctx.now, { displayName: name });
-    return reply.code(201).send({ id, displayName: name } satisfies PersonDto);
+    const o = jsonBody(req);
+    const ownsAccounts = boolField(o, "ownsAccounts") ?? true;
+    const usesApp = boolField(o, "usesApp") ?? true;
+    if (!ownsAccounts && !usesApp) throw badRequest("A person must own accounts, use FinShark, or both.");
+    const id = insertPerson(db, ctx.now, { displayName: name, ownsAccounts, usesApp });
+    return reply.code(201).send(personDto(db.prepare("SELECT * FROM people WHERE id = ?").get(id) as Row));
+  });
+
+  app.put("/api/people/:id/roles", async (req) => {
+    const id = idParam(req);
+    if (!db.prepare("SELECT 1 FROM people WHERE id = ?").get(id)) throw notFound("Person");
+    const o = jsonBody(req);
+    const ownsAccounts = boolField(o, "ownsAccounts");
+    const usesApp = boolField(o, "usesApp");
+    if (ownsAccounts === undefined || usesApp === undefined) throw badRequest("ownsAccounts and usesApp are required.");
+    if (!ownsAccounts && !usesApp) throw badRequest("A person must own accounts, use FinShark, or both.");
+    if (!ownsAccounts && db.prepare("SELECT 1 FROM account_owners WHERE person_id = ? AND valid_to IS NULL LIMIT 1").get(id)) {
+      throw new HttpError(409, "person_owns_accounts", "This person is a current owner of an account. Change those accounts' owners first.");
+    }
+    if (!usesApp && req.session?.personId === String(id)) {
+      throw new HttpError(409, "person_is_using", "You are using FinShark as this person. Switch to someone else first.");
+    }
+    db.prepare("UPDATE people SET owns_accounts = ?, uses_app = ? WHERE id = ?").run(ownsAccounts ? 1 : 0, usesApp ? 1 : 0, id);
+    return personDto(db.prepare("SELECT * FROM people WHERE id = ?").get(id) as Row);
   });
 
   app.get("/api/institutions", async () => ({

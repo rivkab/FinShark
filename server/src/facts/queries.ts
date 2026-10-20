@@ -166,7 +166,7 @@ export function listFacts(db: DatabaseSync, filters: FactFilters = {}): FactView
     where.push("EXISTS (SELECT 1 FROM fact_sources s WHERE s.fact_id = f.id AND s.document_id = ?)");
     params.push(filters.documentId);
   }
-  const sql = `${FACT_SELECT}${where.length ? ` WHERE ${where.join(" AND ")}` : ""} ORDER BY f.created_at, f.id`;
+  const sql = `${FACT_SELECT}${where.length ? ` WHERE ${where.join(" AND ")}` : ""} ORDER BY f.created_at DESC, f.id DESC`;
   return query(db, sql)
     .all(...params)
     .map((r) => toView(db, r as Row));

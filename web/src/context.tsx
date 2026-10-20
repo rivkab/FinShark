@@ -127,7 +127,7 @@ export function ActorProvider({
             <h2>Who is making this change?</h2>
             <p>FinShark records who verifies and changes things. It is not a password.</p>
             <div className="people">
-              {people.map((p) => (
+              {people.filter((p) => p.usesApp).map((p) => (
                 <button key={p.id} onClick={() => void choose(p)}>
                   {p.displayName}
                 </button>

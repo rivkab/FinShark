@@ -5,7 +5,6 @@ import type {
   CreateAccountRequest,
   CreateInstitutionRequest,
   DocumentDto,
-  FactDto,
   InstitutionDto,
   Language,
   SetAccountNameRequest,
@@ -14,10 +13,9 @@ import type {
   SetAccountTypeRequest,
   SetAccountOwnersRequest,
 } from "@finshark/shared";
-import { ApiError, apiFetch, errorText } from "./api.ts";
-import { hrefDocuments, hrefFact } from "./route.ts";
+import { apiFetch, errorText } from "./api.ts";
+import { hrefDocuments } from "./route.ts";
 import { useActor, useRefData } from "./context.tsx";
-import { buildAttestationRequest, validateAttestation, type AttestationForm } from "./factForm.ts";
 import { sortInstitutions } from "./institutionSort.ts";
 import { sortAccounts, type AccountSortKey, type SortDir } from "./accountSort.ts";
 import { ACCOUNT_TYPE_LABEL, INSTITUTION_KIND_LABEL, currencyForCountry, languageForCountry } from "./labels.ts";
@@ -85,11 +83,11 @@ export function AccountsPage() {
 
 /** Checkboxes for choosing people; at least one must stay checked. */
 function OwnerPicker({ selected, onChange }: { selected: number[]; onChange: (ids: number[]) => void }) {
-  const { people } = useRefData();
-  if (people.length === 0) return <p className="muted">Add a person first (People page); every account needs an owner.</p>;
+  const owners = useRefData().people.filter((p) => p.ownsAccounts);
+  if (owners.length === 0) return <p className="muted">Add a person who owns accounts first (People page); every account needs an owner.</p>;
   return (
     <div className="owner-picker">
-      {people.map((p) => (
+      {owners.map((p) => (
         <label key={p.id} className="inline">
           <input
             type="checkbox"
@@ -122,7 +120,6 @@ function OwnersView({ account }: { account: AccountDto }) {
 function AccountRow({ account: a, docCount }: { account: AccountDto; docCount: number | null }) {
   const { reload } = useRefData();
   const { mutate } = useActor();
-  const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const [selected, setSelected] = useState<number[]>([]);
   const [number, setNumber] = useState("");
@@ -141,7 +138,6 @@ function AccountRow({ account: a, docCount }: { account: AccountDto; docCount: n
     setNotes(a.notes ?? "");
     setAltName(a.altName ?? "");
     setError(null);
-    setOpen(false);
     setEditing(true);
   };
 
@@ -247,102 +243,12 @@ function AccountRow({ account: a, docCount }: { account: AccountDto; docCount: n
             </>
           ) : (
             <>
-              <button type="button" onClick={startEdit}>Edit</button>{" "}
-              <button type="button" onClick={() => setOpen(!open)}>{open ? "Cancel" : "Record a statement without a document"}</button>
+              <button type="button" onClick={startEdit}>Edit</button>
             </>
           )}
         </td>
       </tr>
-      {open && (
-        <tr>
-          <td colSpan={9}>
-            <Attest account={a} onDone={() => setOpen(false)} />
-          </td>
-        </tr>
-      )}
     </>
-  );
-}
-
-function Attest({ account, onDone }: { account: AccountDto; onDone: () => void }) {
-  const { mutate } = useActor();
-  const [form, setForm] = useState<AttestationForm>({ conceptId: "status.account_closed", date: "", periodStart: "", periodEnd: "", note: "" });
-  const [errors, setErrors] = useState<string[]>([]);
-  const [busy, setBusy] = useState(false);
-  const [done, setDone] = useState(false);
-  const [savedFactId, setSavedFactId] = useState<number | null>(null);
-  const set = (p: Partial<AttestationForm>) => setForm({ ...form, ...p });
-
-  const submit = async () => {
-    const errs = validateAttestation(form);
-    setErrors(errs);
-    if (errs.length) return;
-    setBusy(true);
-    try {
-      const { fact } = await mutate(() =>
-        apiFetch<{ fact: FactDto }>("/api/attestations", { method: "POST", body: buildAttestationRequest(account.id, form) }),
-      );
-      try {
-        await mutate(() => apiFetch(`/api/facts/${fact.id}/verify`, { method: "POST", body: {} }));
-        setSavedFactId(null);
-      } catch (e) {
-        // Recorded but a different value is already verified: leave it proposed and link to it.
-        if (!(e instanceof ApiError && e.conflicts)) throw e;
-        setSavedFactId(fact.id);
-      }
-      setDone(true);
-    } catch (e) {
-      setErrors([errorText(e)]);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  if (done) {
-    return (
-      <div className="panel">
-        {savedFactId === null ? (
-          <p>Recorded and verified.</p>
-        ) : (
-          <p>
-            Recorded but not verified: a different value is already verified for the same slot. <a href={hrefFact(savedFactId)}>Open it</a> to correct or compare.
-          </p>
-        )}
-        <button onClick={onDone}>Close</button>
-      </div>
-    );
-  }
-  return (
-    <form className="panel fields" onSubmit={(e) => { e.preventDefault(); void submit(); }}>
-      <p>
-        Use this when there is no document: for example the account was closed, or the institution did not issue a form.
-        It is recorded as your statement, not as evidence from a document.
-      </p>
-      <label>
-        <span>What do you want to record?</span>
-        <select value={form.conceptId} onChange={(e) => set({ conceptId: e.target.value as AttestationForm["conceptId"] })}>
-          <option value="status.account_closed">This account was closed</option>
-          <option value="status.no_document_issued">No document was issued for a period</option>
-        </select>
-      </label>
-      {form.conceptId === "status.account_closed" ? (
-        <label>
-          <span>Closed on</span>
-          <input type="date" value={form.date} onChange={(e) => set({ date: e.target.value })} />
-        </label>
-      ) : (
-        <div className="row">
-          <label><span>Period start</span><input type="date" value={form.periodStart} onChange={(e) => set({ periodStart: e.target.value })} /></label>
-          <label><span>Period end</span><input type="date" value={form.periodEnd} onChange={(e) => set({ periodEnd: e.target.value })} /></label>
-        </div>
-      )}
-      <label>
-        <span>Who says so, and why (required)</span>
-        <textarea dir="auto" rows={2} value={form.note} onChange={(e) => set({ note: e.target.value })} />
-      </label>
-      {errors.map((m) => <ErrorNote key={m}>{m}</ErrorNote>)}
-      <div><button type="submit" disabled={busy}>Record statement</button></div>
-    </form>
   );
 }
 
@@ -482,7 +388,8 @@ export function AddAccount({
 }) {
   const { institutions, accounts, people, reload } = useRefData();
   const { mutate } = useActor();
-  const [ownerIds, setOwnerIds] = useState<number[]>(people.length === 1 ? [people[0]!.id] : []);
+  const owningPeople = people.filter((p) => p.ownsAccounts);
+  const [ownerIds, setOwnerIds] = useState<number[]>(owningPeople.length === 1 ? [owningPeople[0]!.id] : []);
   const sortedInstitutions = sortInstitutions(institutions.filter((i) => i.kind !== "employer"));
   const firstInstitution = sortedInstitutions.find((i) => i.id === preferredInstitutionId) ?? sortedInstitutions[0];
   const [institutionId, setInstitutionId] = useState(String(firstInstitution?.id ?? ""));

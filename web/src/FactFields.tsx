@@ -49,7 +49,7 @@ export function FactFormFields({
           <span>Person</span>
           <select value={form.personId} onChange={(e) => set({ personId: e.target.value })}>
             <option value="">Choose a person...</option>
-            {people.map((p) => (
+            {people.filter((p) => p.ownsAccounts).map((p) => (
               <option key={p.id} value={p.id}>{p.displayName}</option>
             ))}
           </select>

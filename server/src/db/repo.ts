@@ -10,10 +10,14 @@ export function defaultLanguageForCountry(country: string): Language {
 
 const iso = (clock: Clock): string => clock().toISOString();
 
-export function insertPerson(db: DatabaseSync, clock: Clock, p: { displayName: string }): number {
+export function insertPerson(
+  db: DatabaseSync,
+  clock: Clock,
+  p: { displayName: string; ownsAccounts?: boolean; usesApp?: boolean },
+): number {
   const r = db
-    .prepare("INSERT INTO people (display_name, created_at) VALUES (?, ?)")
-    .run(p.displayName, iso(clock));
+    .prepare("INSERT INTO people (display_name, owns_accounts, uses_app, created_at) VALUES (?, ?, ?, ?)")
+    .run(p.displayName, (p.ownsAccounts ?? true) ? 1 : 0, (p.usesApp ?? true) ? 1 : 0, iso(clock));
   return Number(r.lastInsertRowid);
 }
 

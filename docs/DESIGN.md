@@ -993,7 +993,7 @@ unchanged. The Review queue page, its route and its keyboard shortcuts were remo
 If a different value is already verified for the same slot, verification returns the
 usual 409 conflict. The fact stays `proposed`, the add panel says so and links to it,
 and the fact page offers Verify (retry), Correct, and Reopen for rejected facts.
-Rejecting a proposed fact has no button in the web app now; correct it instead.
+The fact page's "Delete this number" button rejects a proposed or verified fact with a required reason; facts are never physically deleted, and a rejected fact can be reopened.
 Queries still exclude unverified facts by default, so a conflicted fact is surfaced,
 not silently used.
 
@@ -1006,3 +1006,18 @@ nullable because earlier institutions have none, and we do not guess: the Instit
 table shows "Not set" and the kind can be changed there (`PUT /api/institutions/:id/kind`).
 The Add institution form requires a kind. The Add account picker lists only institutions
 that are not employers. Documents can still be linked to either kind.
+
+### D13. People are account owners, app users, or both (2026-10-20)
+
+`people.owns_accounts` and `people.uses_app` are two flags on one list, not two lists. A
+person who owns accounts can be an account owner and the subject of person-level facts
+(W-2 wages). A person who uses the app can be chosen as "who's using FinShark?" and so
+appears in `verified_by` and `fact_events.actor`. A person can be both (the usual case for
+the adults), only an owner (a child with a savings account), or only a user (a helper).
+Keeping one row means history and ownership refer to the same person.
+
+At least one flag must be set. The API refuses an owner who does not own accounts, a session
+person who does not use the app, removing `owns_accounts` from a current owner of an account
+(change the owners first), and removing `uses_app` from the person using the app right now.
+Existing people got both flags (migration 007). Names in history and owner lists still resolve
+for everyone; only the pickers are filtered.
