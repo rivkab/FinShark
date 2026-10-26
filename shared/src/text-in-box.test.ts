@@ -78,6 +78,14 @@ describe("textInBox", () => {
   it("returns an empty string for an empty selection", () => {
     expect(textInBox(items, [0, 0, 10, 10])).toBe("");
   });
+  it("counts text drawn twice in the same place once (faux bold)", () => {
+    const doubled = [span("157764.73", 109.078, 361.284, 152.938, 370.27), span("157764.73", 109.652, 361.284, 153.512, 370.269)];
+    expect(textInBox(doubled, [100, 355, 160, 375])).toBe("157764.73");
+  });
+  it("keeps repeated strings that are in different places", () => {
+    const two = [box("100", 72, 600), box("100", 200, 600)];
+    expect(textInBox(two, [0, 590, 400, 620])).toBe("100 100");
+  });
   it("handles Hebrew text as ordinary strings", () => {
     expect(textInBox([box("יתרה", 300, 500, 30), box("₪42,318", 200, 500, 40)], [150, 495, 400, 520])).toBe("₪42,318 יתרה");
   });

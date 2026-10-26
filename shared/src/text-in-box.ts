@@ -58,7 +58,26 @@ const NUMERIC_PIECE = /^(?:[$€£₪¥]|[$€£₪¥(+\-−]?[\d.,]+[%)]?)$/u;
 /** Pieces closer than this fraction of the line height count as touching. */
 const JOIN_GAP = 0.35;
 
+/** Same string drawn over itself (faux bold): rects overlapping at least this much are one item. */
+const DUPLICATE_OVERLAP = 0.8;
+
 const isNumericPiece = (s: string): boolean => NUMERIC_PIECE.test(s);
+
+/** Drops items that repeat an earlier item's string at (almost) the same place. */
+function dropOverdrawn<T extends { str: string; x0: number; x1: number; cy: number; h: number }>(items: T[]): T[] {
+  const kept: T[] = [];
+  for (const it of items) {
+    const dup = kept.some((k) => {
+      if (k.str !== it.str) return false;
+      const w = Math.min(k.x1, it.x1) - Math.max(k.x0, it.x0);
+      const narrower = Math.min(k.x1 - k.x0, it.x1 - it.x0);
+      const sameLine = Math.abs(k.cy - it.cy) <= Math.max(k.h, it.h) / 2;
+      return sameLine && (narrower <= 0 ? w >= 0 : w / narrower >= DUPLICATE_OVERLAP);
+    });
+    if (!dup) kept.push(it);
+  }
+  return kept;
+}
 
 /**
  * Text of the items that are at least `minOverlap` (default 50%, by area) inside `box`.
@@ -66,17 +85,18 @@ const isNumericPiece = (s: string): boolean => NUMERIC_PIECE.test(s);
  * half the taller item's height share a line. On a line, two numeric pieces are joined
  * without a space only when nearly touching (gap <= 0.35 x line height), so "2025 12"
  * stays two tokens; everything else is joined with one space. Lines are joined with
- * a single space.
+ * a single space. An item drawn twice in the same place (faux bold) counts once.
  */
 export function textInBox(items: readonly TextBox[], box: PdfRect, minOverlap = 0.5): string {
   const b = normalizeRect(box);
-  const hit = items
+  const candidates = items
     .filter((i) => i.str.trim().length > 0 && overlapFraction(normalizeRect(i.rect), b) >= minOverlap)
     .map((i) => {
       const r = normalizeRect(i.rect);
       return { str: i.str.trim(), x0: r[0], x1: r[2], cy: (r[1] + r[3]) / 2, h: Math.max(r[3] - r[1], 1) };
     })
     .sort((p, q) => q.cy - p.cy || p.x0 - q.x0);
+  const hit = dropOverdrawn(candidates);
 
   const lines: { cy: number; h: number; items: typeof hit }[] = [];
   for (const item of hit) {
