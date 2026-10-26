@@ -52,7 +52,7 @@ export function AccountsPage() {
       ) : (
         <table className="data">
           <thead>
-            <tr>{sortHeader("name", "Account")}{sortHeader("institution", "Institution")}{sortHeader("type", "Type")}{sortHeader("owners", "Owners")}<th>Account number</th>{sortHeader("country", "Country")}<th>Currency</th><th>Latest value</th><th>Notes</th><th /></tr>
+            <tr>{sortHeader("name", "Account")}{sortHeader("institution", "Institution")}{sortHeader("type", "Type")}{sortHeader("owners", "Owners")}<th>Account number</th>{sortHeader("country", "Country")}<th>Currency</th><th>Latest value</th><th>Notes</th></tr>
           </thead>
           <tbody>
             {sorted.map((a) => (
@@ -74,7 +74,7 @@ export function AccountsPage() {
       ) : (
         <table className="data">
           <thead>
-            <tr><th>Name</th><th>Kind</th><th>Country</th><th>Language</th><th /></tr>
+            <tr><th>Name</th><th>Kind</th><th>Country</th><th>Language</th></tr>
           </thead>
           <tbody>
             {sortInstitutions(institutions).map((i) => (
@@ -205,9 +205,15 @@ function AccountRow({ account: a, docCount, balance }: { account: AccountDto; do
           <td>
             <label><span className="muted">Name</span><input type="text" dir="auto" value={name} onChange={(e) => setName(e.target.value)} /></label>
             <label><span className="muted">Name in the other language (optional)</span><input type="text" dir="auto" value={altName} onChange={(e) => setAltName(e.target.value)} /></label>
+            <div className="row-actions">
+              <button type="button" onClick={() => void save()} disabled={busy}>Save</button>{" "}
+              <button type="button" onClick={cancel} disabled={busy}>Cancel</button>
+              <ErrorNote>{error}</ErrorNote>
+            </div>
           </td>
         ) : (
           <Cell>
+            <button type="button" className="edit" onClick={startEdit}>Edit</button>
             <AccountName account={a} />
             {docCount !== null && (
               <div className="small">
@@ -254,19 +260,6 @@ function AccountRow({ account: a, docCount, balance }: { account: AccountDto; do
             <textarea dir="auto" rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} />
           ) : a.notes ? <div className="notes" dir="auto">{a.notes}</div> : <span className="muted">none</span>}
         </td>
-        <td>
-          {editing ? (
-            <>
-              <button type="button" onClick={() => void save()} disabled={busy}>Save</button>{" "}
-              <button type="button" onClick={cancel} disabled={busy}>Cancel</button>
-              <ErrorNote>{error}</ErrorNote>
-            </>
-          ) : (
-            <>
-              <button type="button" onClick={startEdit}>Edit</button>
-            </>
-          )}
-        </td>
       </tr>
     </>
   );
@@ -302,7 +295,18 @@ function InstitutionRow({ inst }: { inst: InstitutionDto }) {
 
   return (
     <tr>
-      <Cell><InstitutionName inst={inst} /></Cell>
+      {editing ? (
+        <td>
+          <InstitutionName inst={inst} />
+          <div className="row-actions">
+            <button type="button" onClick={() => void save()} disabled={busy}>Save</button>{" "}
+            <button type="button" onClick={() => setEditing(false)} disabled={busy}>Cancel</button>
+            <ErrorNote>{error}</ErrorNote>
+          </div>
+        </td>
+      ) : (
+        <Cell><button type="button" className="edit" onClick={startEdit}>Edit</button><InstitutionName inst={inst} /></Cell>
+      )}
       <td>
         {editing ? (
           <select value={kind} onChange={(e) => setKind(e.target.value)}>
@@ -313,17 +317,6 @@ function InstitutionRow({ inst }: { inst: InstitutionDto }) {
       </td>
       <td>{inst.country}</td>
       <td>{langLabel(inst.language)}</td>
-      <td>
-        {editing ? (
-          <>
-            <button type="button" onClick={() => void save()} disabled={busy}>Save</button>{" "}
-            <button type="button" onClick={() => setEditing(false)} disabled={busy}>Cancel</button>
-            <ErrorNote>{error}</ErrorNote>
-          </>
-        ) : (
-          <button type="button" onClick={startEdit}>Edit</button>
-        )}
-      </td>
     </tr>
   );
 }

@@ -96,21 +96,24 @@ function PersonRow({ person, current, onChanged }: { person: PersonDto; current:
       <td>
         <Text>{person.displayName}</Text>
         {current && <span className="muted"> (using FinShark now)</span>}
+        {editing ? (
+          <div className="row-actions">
+            <button type="button" onClick={() => void save()} disabled={busy}>Save</button>{" "}
+            <button type="button" onClick={() => setEditing(false)} disabled={busy}>Cancel</button>
+            <ErrorNote>{error}</ErrorNote>
+          </div>
+        ) : (
+          <button type="button" className="edit" onClick={startEdit}>Edit</button>
+        )}
       </td>
       {editing ? (
         <>
           <td colSpan={2}><RoleChecks ownsAccounts={ownsAccounts} usesApp={usesApp} onChange={(o, u) => { setOwnsAccounts(o); setUsesApp(u); }} /></td>
-          <td>
-            <button type="button" onClick={() => void save()} disabled={busy}>Save</button>{" "}
-            <button type="button" onClick={() => setEditing(false)} disabled={busy}>Cancel</button>
-            <ErrorNote>{error}</ErrorNote>
-          </td>
         </>
       ) : (
         <>
           <td>{person.ownsAccounts ? "Yes" : <span className="muted">No</span>}</td>
           <td>{person.usesApp ? "Yes" : <span className="muted">No</span>}</td>
-          <td><button type="button" onClick={startEdit}>Edit</button></td>
         </>
       )}
     </tr>
@@ -128,7 +131,7 @@ export function PeoplePage({ people, personId, onAdded }: { people: PersonDto[];
       </p>
       <table className="data">
         <thead>
-          <tr><th>Name</th><th>Owns accounts</th><th>Uses FinShark</th><th /></tr>
+          <tr><th>Name</th><th>Owns accounts</th><th>Uses FinShark</th></tr>
         </thead>
         <tbody>
           {people.map((p) => <PersonRow key={p.id} person={p} current={String(p.id) === personId} onChanged={onAdded} />)}

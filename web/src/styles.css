@@ -38,6 +38,10 @@ textarea { width: 100%; }
 button.primary { background: #1757c2; border-color: #1757c2; color: #fff; }
 button.linklike { border: 0; background: none; padding: 0; text-align: start; color: inherit; font-weight: 600; }
 button.linklike:hover { text-decoration: underline; }
+button.edit { float: inline-end; margin-inline-start: 0.5rem; border: 0; background: none; padding: 0; font-size: 0.85rem; color: #1757c2; opacity: 0; }
+tr:hover button.edit, tr:focus-within button.edit { opacity: 1; }
+button.edit:hover { text-decoration: underline; }
+@media (hover: none) { button.edit { opacity: 1; } }
 kbd { font-size: 0.8em; padding: 0 0.3em; border: 1px solid #b8c0cc; border-radius: 4px; background: #f0f2f6; color: #1c2430; }
 .fields { display: flex; flex-direction: column; gap: 0.6rem; }
 .fields label { display: flex; flex-direction: column; gap: 0.15rem; }
@@ -130,3 +134,4 @@ details > summary { cursor: pointer; }
 /* Column header that sorts the table when clicked. */
 button.sort { all: unset; cursor: pointer; font-weight: 600; }
 button.sort:hover, button.sort:focus-visible { text-decoration: underline; }
+.row-actions { margin-top: 0.4rem; }
