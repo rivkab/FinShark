@@ -2,6 +2,7 @@ import { useState } from "react";
 import { ACCOUNT_TYPES, INSTITUTION_KINDS, type AccountType, type InstitutionKind } from "@finshark/shared";
 import type {
   AccountDto,
+  FactDto,
   CreateAccountRequest,
   CreateInstitutionRequest,
   DocumentDto,
@@ -19,12 +20,17 @@ import { useActor, useRefData } from "./context.tsx";
 import { sortInstitutions } from "./institutionSort.ts";
 import { sortAccounts, type AccountSortKey, type SortDir } from "./accountSort.ts";
 import { ACCOUNT_TYPE_LABEL, INSTITUTION_KIND_LABEL, currencyForCountry, languageForCountry } from "./labels.ts";
+import { latestBalances } from "./latestBalance.ts";
 import { Cell, Text, Value } from "./Value.tsx";
 import { ErrorNote, InstitutionName, AccountName, Warning, langLabel, useLoad } from "./ui.tsx";
 
 export function AccountsPage() {
   const { institutions, accounts, people } = useRefData();
   const docs = useLoad(() => apiFetch<{ documents: DocumentDto[] }>("/api/documents").then((r) => r.documents), 0);
+  const balances = useLoad(
+    () => apiFetch<{ facts: FactDto[] }>("/api/facts?concept=balance.ending").then((r) => latestBalances(r.facts)),
+    0,
+  );
   const [sort, setSort] = useState<{ key: AccountSortKey; dir: SortDir }>({ key: "name", dir: "asc" });
   const sorted = sortAccounts(accounts, sort.key, sort.dir, people);
   /** Clicking the active column flips the direction; another column starts ascending. */
@@ -46,13 +52,14 @@ export function AccountsPage() {
       ) : (
         <table className="data">
           <thead>
-            <tr>{sortHeader("name", "Account")}{sortHeader("institution", "Institution")}{sortHeader("type", "Type")}{sortHeader("owners", "Owners")}<th>Account number</th>{sortHeader("country", "Country")}<th>Currency</th><th>Notes</th><th /></tr>
+            <tr>{sortHeader("name", "Account")}{sortHeader("institution", "Institution")}{sortHeader("type", "Type")}{sortHeader("owners", "Owners")}<th>Account number</th>{sortHeader("country", "Country")}<th>Currency</th><th>Latest value</th><th>Notes</th><th /></tr>
           </thead>
           <tbody>
             {sorted.map((a) => (
               <AccountRow
                 key={a.id}
                 account={a}
+                balance={balances.data ? (balances.data.get(a.id) ?? null) : undefined}
                 docCount={docs.data ? docs.data.filter((d) => d.accountIds.includes(a.id)).length : null}
               />
             ))}
@@ -117,7 +124,7 @@ function OwnersView({ account }: { account: AccountDto }) {
   );
 }
 
-function AccountRow({ account: a, docCount }: { account: AccountDto; docCount: number | null }) {
+function AccountRow({ account: a, docCount, balance }: { account: AccountDto; docCount: number | null; balance: FactDto | null | undefined }) {
   const { reload } = useRefData();
   const { mutate } = useActor();
   const [editing, setEditing] = useState(false);
@@ -229,6 +236,19 @@ function AccountRow({ account: a, docCount }: { account: AccountDto; docCount: n
         </td>
         <td>{a.country}</td>
         <td>{a.nativeCurrency}</td>
+        <td className="balance-cell">
+          {balance === undefined ? null : balance === null ? (
+            <span className="muted">none yet</span>
+          ) : (
+            <>
+              <Value>{balance.formatted}</Value>
+              <div className="balance-date small muted">
+                <Value>{balance.instantDate}</Value>
+                {balance.status !== "verified" && " · unverified"}
+              </div>
+            </>
+          )}
+        </td>
         <td>
           {editing ? (
             <textarea dir="auto" rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} />

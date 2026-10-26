@@ -51,6 +51,8 @@ kbd { font-size: 0.8em; padding: 0 0.3em; border: 1px solid #b8c0cc; border-radi
 .panel { background: #fff; border: 1px solid #d8dde5; border-radius: 8px; padding: 0.75rem 1rem; margin: 0.75rem 0; }
 .panel h3 { margin-top: 0; }
 .small { font-size: 0.85rem; }
+.balance-cell { position: relative; padding-bottom: 1.6rem !important; }
+.balance-date { position: absolute; right: 0.5rem; bottom: 0.3rem; }
 .muted { color: #667085; }
 .alt { color: #566170; }
 .ok { color: #1c7a3a; }
