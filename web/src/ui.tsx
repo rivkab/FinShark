@@ -80,8 +80,8 @@ export function useAction<A extends unknown[]>(fn: (...args: A) => Promise<unkno
 
 const FACT_STATUS = {
   verified: { tone: "success", label: "verified" },
-  proposed: { tone: "warning", label: "not verified" },
-  rejected: { tone: "danger", label: "rejected" },
+  proposed: { tone: "warning", label: "conflict" },
+  rejected: { tone: "danger", label: "deleted" },
   superseded: { tone: "muted", label: "replaced" },
 } as const satisfies Record<FactStatus, { tone: "success" | "warning" | "danger" | "muted"; label: string }>;
 

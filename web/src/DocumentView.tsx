@@ -246,12 +246,12 @@ export function DocumentView({ id, factId }: { id: number; factId: number | null
                     <Stack gap={2}>
                       {conflictWith ? (
                         <Alert tone="warning">
-                          Saved <FactAmount fact={added.fact} /> (<FactConcept fact={added.fact} />) but not verified: a different value is already verified for the
+                          Saved <FactAmount fact={added.fact} /> (<FactConcept fact={added.fact} />) but it conflicts: a different value is already verified for the
                           same kind of number, account, person and date ({conflictWith.map((c, i) => <Text key={c.id}>{i > 0 && ", "}<Link href={hrefFact(c.id)}>#{c.id}</Link></Text>)}).{" "}
                           <Link href={hrefFact(added.fact.id)}>Open it</Link> to correct or compare.
                         </Alert>
                       ) : (
-                        <Alert tone="success">Added and verified <FactAmount fact={added.fact} /> (<FactConcept fact={added.fact} />).</Alert>
+                        <Alert tone="success">Added <FactAmount fact={added.fact} /> (<FactConcept fact={added.fact} />).</Alert>
                       )}
                       <Alert tone="warning">{warning}</Alert>
                     </Stack>

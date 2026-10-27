@@ -256,7 +256,7 @@ function Feedback() {
         </Inline>
         <Inline gap={4}>
           <StatusMark tone="success" icon="check">verified · 30 Sep</StatusMark>
-          <StatusMark tone="warning" icon="clock">proposed</StatusMark>
+          <StatusMark tone="warning" icon="clock">conflict · 30 Sep</StatusMark>
           <StatusMark tone="danger" icon="cross">rejected</StatusMark>
           <StatusMark tone="muted" icon="dash">replaced</StatusMark>
         </Inline>
@@ -291,7 +291,7 @@ function DataDisplay() {
         <StatGroup>
           <Stat label="Accounts" value="12" note="3 institutions" />
           <Stat label="Net balance" value={<Value size="lg">$12,480.15</Value>} note="converted" />
-          <Stat label="Not verified" value="7" tone="warning" href="#/design" note="Review them" />
+          <Stat label="Conflicting values" value="7 values" tone="warning" href="#/design" note="A different value is already verified" />
         </StatGroup>
         <Table aria-label="Mixed Hebrew and English accounts">
           <TableHead>
@@ -313,7 +313,7 @@ function DataDisplay() {
                 <Td align="end">
                   <Stack gap={1} align="end">
                     <Value>{r.amount}</Value>
-                    <StatusMark tone="success" icon="check">verified · 30 Sep</StatusMark>
+                    <Text size="sm" tone="muted">30 Sep</Text>
                   </Stack>
                 </Td>
                 <Td><DataText>{r.note}</DataText></Td>
@@ -325,10 +325,10 @@ function DataDisplay() {
               <Td align="end">
                 <Stack gap={1} align="end">
                   <Value>₪1,204.33</Value>
-                  <StatusMark tone="warning" icon="clock">proposed</StatusMark>
+                  <StatusMark tone="warning" icon="clock">conflict · 30 Sep</StatusMark>
                 </Stack>
               </Td>
-              <Td>Awaiting review</Td>
+              <Td>Conflicts with a verified value</Td>
             </Tr>
             <Tr tone="muted">
               <Td>Replaced value</Td>

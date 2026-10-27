@@ -37,7 +37,7 @@ export function parseHash(hash: string): Route {
     case "facts": {
       if (second !== undefined && ID.test(second)) return { page: "fact", id: Number(second) };
       const filters: Record<string, string> = {};
-      for (const k of ["status", "concept", "account", "document"]) {
+      for (const k of ["status", "removed", "concept", "account", "document"]) {
         const v = q.get(k);
         if (v) filters[k] = v;
       }

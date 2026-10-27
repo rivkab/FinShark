@@ -21,6 +21,7 @@ describe("parseHash", () => {
   it("parses facts, fact history, accounts, demo", () => {
     expect(parseHash("#/facts")).toEqual({ page: "facts", filters: {} });
     expect(parseHash("#/facts?status=proposed&account=3&junk=1")).toEqual({ page: "facts", filters: { status: "proposed", account: "3" } });
+    expect(parseHash("#/facts?removed=1")).toEqual({ page: "facts", filters: { removed: "1" } });
     expect(parseHash("#/facts/9")).toEqual({ page: "fact", id: 9 });
     expect(parseHash("#/accounts")).toEqual({ page: "accounts" });
     expect(parseHash("#/people")).toEqual({ page: "people" });

@@ -4,12 +4,14 @@ import { ApiError, apiFetch } from "./api.ts";
 import { useActor, useRefData } from "./context.tsx";
 import { hrefDocument, hrefFact, hrefFacts } from "./route.ts";
 import { factDateLabel } from "./suggest.ts";
+import { visibleFacts } from "./factsView.ts";
 import { AccountName, FactAmount, FactConcept, StatusBadge, useAction, useLoad } from "./ui.tsx";
 import { FactFormFields } from "./FactFields.tsx";
 import { buildCorrectRequest, formFromFact, mismatchWarning, validateFactForm, type FactFormState } from "./factForm.ts";
 import {
   Alert,
   Button,
+  Checkbox,
   DataText,
   Empty,
   Field,
@@ -42,34 +44,31 @@ import {
 
 // ---------------------------------------------------------------- list
 
-const STATUS_OPTIONS = [
-  { value: "proposed", label: "Not verified" },
-  { value: "verified", label: "Verified" },
-  { value: "rejected", label: "Rejected" },
-  { value: "superseded", label: "Replaced" },
-];
+const STATUS_OPTIONS = [{ value: "proposed", label: "Conflicts only" }];
 
 export function FactsPage({ filters }: { filters: Record<string, string> }) {
   const { concepts, accounts } = useRefData();
   const docs = useLoad(() => apiFetch<{ documents: DocumentDto[] }>("/api/documents").then((r) => r.documents), 0);
-  const query = new URLSearchParams(Object.entries(filters).filter(([, v]) => v)).toString();
+  const query = new URLSearchParams(Object.entries(filters).filter(([k, v]) => v && k !== "removed")).toString();
   const facts = useLoad(() => apiFetch<{ facts: FactDto[] }>(`/api/facts${query ? `?${query}` : ""}`).then((r) => r.facts), query);
-  const awaiting = filters["status"] === "proposed";
+  const conflicts = filters["status"] === "proposed";
+  const showRemoved = filters["removed"] === "1";
+  const shown = facts.data ? visibleFacts(facts.data, showRemoved) : null;
 
   const set = (k: string, v: string) => {
     window.location.hash = hrefFacts({ ...filters, [k]: v }).slice(1);
   };
 
   return (
-    <Page eyebrow={awaiting ? "Awaiting check" : "Every recorded number"} title="Facts">
-      {awaiting && (
+    <Page eyebrow={conflicts ? "Conflicting values" : showRemoved ? "Every recorded number" : "Every current number"} title="Facts">
+      {conflicts && (
         <Text as="p" tone="muted">
-          These numbers were saved but not verified, usually because a different value is already verified for the same thing. Open each one to verify, correct or delete it.
+          A different value is already verified for the same kind of number, account, person and date. Open each one to verify it anyway, correct it or delete it.
         </Text>
       )}
       <FieldRow align="end">
-        <Field label="Status">
-          <Select value={filters["status"] ?? ""} onChange={(v) => set("status", v)} placeholder="Any" options={STATUS_OPTIONS} />
+        <Field label="Show">
+          <Select value={filters["status"] ?? ""} onChange={(v) => set("status", v)} placeholder="All current" options={STATUS_OPTIONS} />
         </Field>
         <Field label="Kind of number">
           <Select
@@ -95,15 +94,15 @@ export function FactsPage({ filters }: { filters: Record<string, string> }) {
             options={(docs.data ?? []).map((d) => ({ value: String(d.id), label: d.originalFilename, dir: "auto" }))}
           />
         </Field>
+        <Checkbox checked={showRemoved} onChange={(checked) => set("removed", checked ? "1" : "")} label="Show deleted and replaced" />
         {Object.values(filters).some(Boolean) && <Link href={hrefFacts()}>Clear filters</Link>}
       </FieldRow>
       <Alert tone="danger">{facts.error}</Alert>
-      {facts.data && facts.data.length === 0 && <Empty>No facts match.</Empty>}
-      {facts.data && facts.data.length > 0 && (
+      {shown && shown.length === 0 && <Empty>No facts match.</Empty>}
+      {shown && shown.length > 0 && (
         <Table aria-label="Facts">
           <TableHead>
             <Tr>
-              <Th>Status</Th>
               <Th>Kind of number</Th>
               <Th>Account</Th>
               <Th align="end">Value</Th>
@@ -113,10 +112,14 @@ export function FactsPage({ filters }: { filters: Record<string, string> }) {
             </Tr>
           </TableHead>
           <TableBody>
-            {facts.data.map((f) => (
+            {shown.map((f) => (
               <Tr key={f.id} tone={f.status === "rejected" || f.status === "superseded" ? "muted" : "default"}>
-                <Td><StatusBadge status={f.status} /></Td>
-                <Td><FactConcept fact={f} /></Td>
+                <Td>
+                  <Stack gap={1}>
+                    <FactConcept fact={f} />
+                    {f.status !== "verified" && <Inline><StatusBadge status={f.status} /></Inline>}
+                  </Stack>
+                </Td>
                 <Td>
                   <Stack gap={1}>
                     {f.accountName !== null ? <DataText>{f.accountName}</DataText> : <Text tone="muted">none</Text>}
@@ -202,7 +205,7 @@ export function FactHistory({ id }: { id: number }) {
         await mutate(() => apiFetch(`/api/facts/${id}/verify`, { method: "POST", body: {} }));
       } catch (e) {
         throw e instanceof ApiError && e.conflicts
-          ? new Error("Not verified: a different value is already verified for the same kind of number, account, person and date.")
+          ? new Error("Still conflicts: a different value is already verified for the same kind of number, account, person and date.")
           : e;
       }
     });
@@ -262,7 +265,7 @@ export function FactHistory({ id }: { id: number }) {
           <Panel title="Delete this number">
             <Form onSubmit={() => void remove()}>
               <Text as="p" size="sm" tone="muted">
-                The number is marked rejected and no longer used in answers. It stays in the history, and you can reopen it later.
+                The number is marked deleted and no longer used in answers. It stays in the history, and you can reopen it later.
               </Text>
               <Field label="Why">
                 <TextInput autoFocus value={deleteReason} onChange={setDeleteReason} />
@@ -279,7 +282,7 @@ export function FactHistory({ id }: { id: number }) {
             <Form onSubmit={() => void submitCorrection(true)}>
               {f.status === "verified" && (
                 <Text as="p" size="sm" tone="muted">
-                  This number is verified. Saving creates a new number that replaces it; the old one stays in the history.
+                  Saving creates a new number that replaces this one; the old one stays in the history.
                 </Text>
               )}
               <FactFormFields form={form} onChange={setForm} concepts={concepts} accounts={accounts} institutionId={null} period={{ periodStart: null, periodEnd: null }} />
@@ -358,7 +361,7 @@ function eventText(e: FactEventDto): string {
     case "proposed": return "added";
     case "verified": return "verified";
     case "corrected": return "corrected";
-    case "rejected": return "rejected";
+    case "rejected": return "deleted";
     case "superseded": return "replaced by a correction";
     case "reopened": return "reopened";
   }

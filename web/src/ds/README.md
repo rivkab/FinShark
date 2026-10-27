@@ -193,7 +193,7 @@ to `--space-n`). Defaults noted per component.
 
 Built only from primitives: `AccountName`, `InstitutionName`, `FactConcept`,
 `FactAmount`, `StatusBadge` (fact status -> `Badge`: verified success, proposed
-warning "not verified", rejected danger, superseded muted "replaced"),
+warning "conflict", rejected danger "deleted", superseded muted "replaced"),
 `DocStatusBadge` (inbox warning "needs review", reviewed success), `AccountSelect`,
 `ConceptPicker` (on `Combobox`), `useLoad`, `useAction`.
 
