@@ -1,6 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { AccountDto, ConceptDto, InstitutionDto, PersonDto, TaxonomyDto, TermDto } from "@finshark/shared";
 import { ApiError, apiFetch, errorText, setActingPerson } from "./api.ts";
+import { Alert, Button, DataText, Heading, Inline, Loading, Modal, Page, Stack, Text } from "./ds/index.ts";
+import { useAction } from "./ui.tsx";
 
 // ---------------------------------------------------------------- reference data
 
@@ -52,8 +54,8 @@ export function RefDataProvider({ children }: { children: ReactNode }) {
   }, [reload]);
 
   const value = useMemo(() => (state ? { ...state, reload } : null), [state, reload]);
-  if (error && !value) return <main className="center"><p className="error">Could not load FinShark data: {error}</p></main>;
-  if (!value) return <main className="center"><p>Loading...</p></main>;
+  if (error && !value) return <Page width="narrow" title="FinShark"><Alert tone="danger">{`Could not load FinShark data: ${error}`}</Alert></Page>;
+  if (!value) return <Page width="narrow" title="FinShark"><Loading /></Page>;
   return <RefContext.Provider value={value}>{children}</RefContext.Provider>;
 }
 
@@ -90,7 +92,6 @@ export function ActorProvider({
   children: ReactNode;
 }) {
   const [prompt, setPrompt] = useState<Prompt | null>(null);
-  const [err, setErr] = useState<string | null>(null);
   const personRef = useRef(personId);
   personRef.current = personId;
 
@@ -106,46 +107,42 @@ export function ActorProvider({
 
   const actor = useMemo(() => ({ personId, mutate }), [personId, mutate]);
 
-  const choose = async (p: PersonDto) => {
-    try {
-      await setActingPerson(String(p.id));
-      setPersonId(String(p.id));
-      setErr(null);
-      prompt?.resolve();
-      setPrompt(null);
-    } catch (e) {
-      setErr(errorText(e));
-    }
-  };
+  const choose = useAction(async (p: PersonDto) => {
+    await setActingPerson(String(p.id));
+    setPersonId(String(p.id));
+    prompt?.resolve();
+    setPrompt(null);
+  });
 
   return (
     <ActorContext.Provider value={actor}>
       {children}
       {prompt && (
-        <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="Who is using FinShark?">
-          <div className="modal">
-            <h2>Who is making this change?</h2>
-            <p>FinShark records who verifies and changes things. It is not a password.</p>
-            <div className="people">
+        <Modal label="Who is using FinShark?">
+          <Stack gap={4}>
+            <Heading level={2}>Who is making this change?</Heading>
+            <Text as="p">FinShark records who verifies and changes things. It is not a password.</Text>
+            <Inline>
               {people.filter((p) => p.usesApp).map((p) => (
-                <button key={p.id} onClick={() => void choose(p)}>
-                  {p.displayName}
-                </button>
+                <Button key={p.id} onClick={() => void choose.run(p)}>
+                  <DataText>{p.displayName}</DataText>
+                </Button>
               ))}
-            </div>
-            {err && <p className="error">{err}</p>}
-            <p>
-              <button
+            </Inline>
+            <Alert tone="danger">{choose.error}</Alert>
+            <Inline>
+              <Button
+                variant="ghost"
                 onClick={() => {
                   prompt.reject();
                   setPrompt(null);
                 }}
               >
                 Cancel
-              </button>
-            </p>
-          </div>
-        </div>
+              </Button>
+            </Inline>
+          </Stack>
+        </Modal>
       )}
     </ActorContext.Provider>
   );

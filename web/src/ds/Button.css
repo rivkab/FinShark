@@ -1,0 +1,110 @@
+.ds-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text);
+  font-weight: var(--weight-medium);
+  line-height: 1;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.ds-button--md {
+  height: var(--control-height);
+  padding: 0 14px;
+  font-size: 14px;
+}
+
+.ds-button--sm {
+  height: var(--control-height-sm);
+  padding: 0 10px;
+  font-size: var(--text-sm);
+}
+
+.ds-button--primary {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: var(--color-accent-contrast);
+}
+
+.ds-button--primary:hover:not(:disabled) {
+  background: var(--color-accent-hover);
+  border-color: var(--color-accent-hover);
+}
+
+.ds-button--secondary {
+  border-color: var(--color-border-control);
+}
+
+.ds-button--secondary:hover:not(:disabled),
+.ds-button--ghost:hover:not(:disabled) {
+  background: var(--color-bg-hover);
+}
+
+.ds-button--danger {
+  border-color: var(--color-danger);
+  color: var(--color-danger);
+}
+
+.ds-button--danger:hover:not(:disabled) {
+  background: var(--color-danger-bg);
+}
+
+.ds-button--link {
+  height: auto;
+  padding: 0;
+  border: 0;
+  font-weight: var(--weight-regular);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-thickness: 1px;
+}
+
+.ds-button--link:hover:not(:disabled) {
+  color: var(--color-text-strong);
+}
+
+.ds-button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.ds-button[aria-busy="true"] {
+  cursor: progress;
+}
+
+.ds-link {
+  color: var(--color-text);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-thickness: 1px;
+}
+
+.ds-link:hover {
+  color: var(--color-text-strong);
+}
+
+.ds-link--muted { color: var(--color-text-muted); }
+.ds-link--warning { color: var(--color-warning); }
+
+.ds-row-action {
+  float: inline-end;
+  margin-inline-start: var(--space-2);
+  opacity: 0;
+}
+
+tr:hover .ds-row-action,
+.ds-row-action:focus-within {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .ds-row-action {
+    opacity: 1;
+  }
+}

@@ -4,13 +4,35 @@ import { AccountsPage } from "./AccountsPage.tsx";
 import { apiFetch, errorText, fetchSession, setActingPerson } from "./api.ts";
 import { ActorProvider, RefDataProvider, useRefData } from "./context.tsx";
 import { DemoPage } from "./DemoPage.tsx";
+import { DesignPage } from "./DesignPage.tsx";
 import { DocumentsPage } from "./DocumentsPage.tsx";
 import { DocumentView } from "./DocumentView.tsx";
 import { FactHistory, FactsPage } from "./FactsPage.tsx";
 import { AddPersonForm, PeoplePage } from "./PeoplePage.tsx";
 import { parseHash, type Route } from "./route.ts";
-import { ErrorNote } from "./ui.tsx";
-import { Text } from "./Value.tsx";
+import { useAction, useLoad } from "./ui.tsx";
+import type { DocumentDto } from "@finshark/shared";
+import {
+  Alert,
+  AppHeader,
+  AppShell,
+  Brand,
+  Button,
+  DataText,
+  Field,
+  FieldRow,
+  Form,
+  Heading,
+  Inline,
+  Link,
+  Loading,
+  NavTabs,
+  Page,
+  Stack,
+  Text,
+  TextInput,
+  UserChip,
+} from "./ds/index.ts";
 
 const NAV = [
   { label: "Accounts", href: "#/accounts", pages: ["accounts"] },
@@ -55,33 +77,32 @@ export function App() {
     );
   }, []);
 
-  if (error) return <main className="center"><p className="error">{error}</p></main>;
-  if (personId === undefined || people === null) return <main className="center"><p>Loading...</p></main>;
+  if (error) return <Page width="narrow" title="FinShark"><Alert tone="danger">{error}</Alert></Page>;
+  if (personId === undefined || people === null) return <Page width="narrow" title="FinShark"><Loading /></Page>;
 
   if (people.length === 0) return <SetupPeople onDone={setPeople} />;
 
   if (personId === null) {
     return (
-      <main className="center">
-        <h1>Who's using FinShark?</h1>
-        <p>This records who verifies and changes things. It is not a password.</p>
-        <div className="people">
+      <Page width="narrow" title="Who's using FinShark?">
+        <Text as="p">This records who verifies and changes things. It is not a password.</Text>
+        <Inline>
           {people.filter((p) => p.usesApp).map((p) => (
-            <button
+            <Button
               key={p.id}
               onClick={() => setActingPerson(String(p.id)).then(() => setPersonId(String(p.id)), () => setError("Could not save your choice."))}
             >
-              <Text>{p.displayName}</Text>
-            </button>
+              <DataText>{p.displayName}</DataText>
+            </Button>
           ))}
-        </div>
-        <h2>Someone else?</h2>
+        </Inline>
+        <Heading level={2}>Someone else?</Heading>
         <AddPersonForm label="Add and continue" onAdded={async (p) => {
           await reloadPeople();
           await setActingPerson(String(p.id));
           setPersonId(String(p.id));
         }} />
-      </main>
+      </Page>
     );
   }
 
@@ -97,36 +118,34 @@ export function App() {
 function SetupPeople({ onDone }: { onDone: (p: PersonDto[]) => void }) {
   const [added, setAdded] = useState<PersonDto[]>([]);
   const [name, setName] = useState("");
-  const [error, setError] = useState<string | null>(null);
 
-  const add = async () => {
-    if (name.trim() === "") return;
-    try {
-      const p = await apiFetch<PersonDto>("/api/people", { method: "POST", body: { displayName: name.trim() } });
-      setAdded([...added, p]);
-      setName("");
-      setError(null);
-    } catch (e) {
-      setError(errorText(e));
-    }
-  };
+  const add = useAction(async () => {
+    const p = await apiFetch<PersonDto>("/api/people", { method: "POST", body: { displayName: name.trim() } });
+    setAdded([...added, p]);
+    setName("");
+  });
 
   return (
-    <main className="center">
-      <h1>Welcome to FinShark</h1>
-      <p>Who will use this? Add everyone in the household who will check or change numbers. FinShark records who did what. It is not a password.</p>
-      <form onSubmit={(e) => { e.preventDefault(); void add(); }} className="row">
-        <input type="text" dir="auto" placeholder="Name" aria-label="Name" value={name} onChange={(e) => setName(e.target.value)} autoFocus />
-        <button type="submit">Add person</button>
-      </form>
-      <ErrorNote>{error}</ErrorNote>
+    <Page width="narrow" title="Welcome to FinShark">
+      <Text as="p">Who will use this? Add everyone in the household who will check or change numbers. FinShark records who did what. It is not a password.</Text>
+      <Form onSubmit={() => { if (name.trim() !== "") void add.run(); }}>
+        <FieldRow align="end">
+          <Field label="Name" grow>
+            <TextInput value={name} onChange={setName} autoFocus />
+          </Field>
+          <Button type="submit" busy={add.busy}>Add person</Button>
+        </FieldRow>
+      </Form>
+      <Alert tone="danger">{add.error}</Alert>
       {added.length > 0 && (
         <>
-          <ul>{added.map((p) => <li key={p.id}><Text>{p.displayName}</Text></li>)}</ul>
-          <button className="primary" onClick={() => onDone(added)}>Continue</button>
+          <Stack gap={1}>
+            {added.map((p) => <Text key={p.id} as="div"><DataText>{p.displayName}</DataText></Text>)}
+          </Stack>
+          <Inline><Button variant="primary" onClick={() => onDone(added)}>Continue</Button></Inline>
         </>
       )}
-    </main>
+    </Page>
   );
 }
 
@@ -144,34 +163,43 @@ function Shell({
   const { reload } = useRefData();
   const route = useRoute();
   const person = people.find((p) => String(p.id) === personId);
+  // Keyed on the route so the inbox count refreshes as you move around.
+  const docs = useLoad(() => apiFetch<{ documents: DocumentDto[] }>("/api/documents").then((r) => r.documents), route);
+  const inbox = docs.data?.filter((d) => d.status === "inbox").length ?? 0;
+
+  const items = NAV.map((n) => ({
+    label: n.label,
+    href: n.href,
+    active: (n.pages as readonly string[]).includes(route.page),
+    ...(n.label === "Documents" ? { count: inbox } : {}),
+  }));
+
   return (
-    <div className="shell">
-      <header>
-        <strong className="brand">FinShark</strong>
-        <nav>
-          {NAV.map((n) => (
-            <a key={n.label} href={n.href} className={(n.pages as readonly string[]).includes(route.page) ? "active" : undefined}>
-              {n.label}
-            </a>
-          ))}
-        </nav>
-        <span className="who">
-          <Text>{person?.displayName ?? personId}</Text> <button onClick={onSwitch}>Switch</button>
-        </span>
-      </header>
-      <main>
-        {route.page === "people" ? (
-          <PeoplePage people={people} personId={personId} onAdded={async () => { await onPeopleChanged(); await reload(); }} />
-        ) : (
-          <Page route={route} />
-        )}
-      </main>
-      <footer><a href="#/demo">Viewer demo</a></footer>
-    </div>
+    <AppShell
+      header={
+        <AppHeader
+          brand={<Brand />}
+          nav={<NavTabs items={items} />}
+          user={<UserChip name={person?.displayName ?? personId} onSwitch={onSwitch} />}
+        />
+      }
+      footer={
+        <Inline gap={4}>
+          <Link href="#/demo" tone="muted">Viewer demo</Link>
+          <Link href="#/design" tone="muted">Design system</Link>
+        </Inline>
+      }
+    >
+      {route.page === "people" ? (
+        <PeoplePage people={people} personId={personId} onAdded={async () => { await onPeopleChanged(); await reload(); }} />
+      ) : (
+        <RoutePage route={route} />
+      )}
+    </AppShell>
   );
 }
 
-function Page({ route }: { route: Route }) {
+function RoutePage({ route }: { route: Route }) {
   switch (route.page) {
     case "documents": return <DocumentsPage accountId={route.accountId} />;
     case "document": return <DocumentView id={route.id} factId={route.factId} />;
@@ -180,5 +208,6 @@ function Page({ route }: { route: Route }) {
     case "accounts": return <AccountsPage />;
     case "people": return null; // rendered by Shell, which owns the people list
     case "demo": return <DemoPage />;
+    case "design": return <DesignPage />;
   }
 }

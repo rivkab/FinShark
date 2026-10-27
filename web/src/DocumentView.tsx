@@ -1,17 +1,18 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { DocumentDetailDto, DocumentDto, FactDto, Language, PdfRect, ProposeFactResponse, UpdateDocumentRequest } from "@finshark/shared";
 import { ApiError, apiFetch, errorText } from "./api.ts";
 import { useActor, useRefData } from "./context.tsx";
 import { FactFormFields } from "./FactFields.tsx";
 import { applyConceptChange, buildProposeRequest, emptyFactForm, isMoney, mismatchWarning, validateFactForm, type FactFormState } from "./factForm.ts";
-import { PdfViewer, type PdfHighlight, type PdfSelection } from "./PdfViewer.tsx";
-import { hrefDocuments, hrefFact } from "./route.ts";
+import { PdfViewer, type PdfHighlight, type PdfSelection } from "./pdf/PdfViewer.tsx";
+import { PdfLegend } from "./pdf/PdfLegend.tsx";
+import { hrefDocument, hrefDocuments, hrefFact } from "./route.ts";
 import { AddAccount } from "./AccountsPage.tsx";
 import { conceptLabel, pickLabel } from "./labels.ts";
 import { findPreviousDocument, factDateLabel, periodLabel, suggestionsFromFacts, type Suggestion } from "./suggest.ts";
 import { sortInstitutions } from "./institutionSort.ts";
-import { AccountName, AccountSelect, ErrorNote, FactAmount, FactConcept, StatusBadge, Warning, useLoad } from "./ui.tsx";
-import { Text, Value } from "./Value.tsx";
+import { AccountName, AccountSelect, FactAmount, FactConcept, StatusBadge, useAction, useLoad } from "./ui.tsx";
+import { Alert, Button, Checkbox, DataText, DateInput, Disclosure, Empty, Field, FieldRow, Form, Inline, Link, List, ListItem, Loading, Page, Panel, Select, SplitLayout, Stack, Text, TextInput, Value } from "./ds/index.ts";
 
 interface FocusTarget {
   pageNo: number;
@@ -20,7 +21,7 @@ interface FocusTarget {
 }
 
 export function DocumentView({ id, factId }: { id: number; factId: number | null }) {
-  const { concepts, accounts } = useRefData();
+  const { concepts, accounts, institutions } = useRefData();
   const { mutate } = useActor();
   const detail = useLoad(() => apiFetch<DocumentDetailDto>(`/api/documents/${id}`), id);
   const facts = useLoad(() => apiFetch<{ facts: FactDto[] }>(`/api/facts?document=${id}`).then((r) => r.facts), id);
@@ -36,12 +37,8 @@ export function DocumentView({ id, factId }: { id: number; factId: number | null
   const [form, setForm] = useState<FactFormState>(emptyFactForm());
   const [resetKey, setResetKey] = useState(0);
   const [errors, setErrors] = useState<string[]>([]);
-  const [busy, setBusy] = useState(false);
   const [added, setAdded] = useState<ProposeFactResponse | null>(null);
   const [conflictWith, setConflictWith] = useState<FactDto[] | null>(null);
-  const addPanel = useRef<HTMLDivElement>(null);
-  const [statusBusy, setStatusBusy] = useState(false);
-  const [statusError, setStatusError] = useState<string | null>(null);
 
   useEffect(() => {
     setFocusedFactId(factId);
@@ -140,175 +137,186 @@ export function DocumentView({ id, factId }: { id: number; factId: number | null
     setDraft(sel);
     setAdded(null);
     setErrors([]);
+    add.setError(null);
     setForm((f) => ({ ...f, value: sel.text.trim() }));
-    addPanel.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
   };
 
-  const submit = async () => {
+  const add = useAction(async () => {
+    const res = await mutate(() =>
+      apiFetch<ProposeFactResponse>("/api/facts", {
+        method: "POST",
+        body: buildProposeRequest(form, concept!, { documentId: id, pageNo: draft!.pageNo, bbox: draft!.rect }),
+      }),
+    );
+    let fact = res.fact;
+    let conflicts: FactDto[] | null = null;
+    try {
+      fact = await mutate(() => apiFetch<{ fact: FactDto }>(`/api/facts/${fact.id}/verify`, { method: "POST", body: {} }).then((r) => r.fact));
+    } catch (e) {
+      // A different value is already verified for the same slot: keep it as proposed and say so.
+      conflicts = e instanceof ApiError ? e.conflicts : null;
+      if (!conflicts) throw e;
+    }
+    setAdded({ ...res, fact });
+    setConflictWith(conflicts);
+    setDraft(null);
+    setResetKey((k) => k + 1);
+    setHintBox(null);
+    setForm((f) => ({ ...emptyFactForm(), accountId: f.accountId, currency: f.currency }));
+    setFocusedFactId(res.fact.id);
+    setFocusNonce((n) => n + 1);
+    setHintFocus(null);
+    await Promise.all([facts.reload(), detail.reload(), allDocs.reload()]);
+  });
+
+  const submit = () => {
     const errs = validateFactForm(form, concept);
     if (!draft) errs.unshift("Draw a box around the number on the PDF first.");
     setErrors(errs);
+    add.setError(null);
     if (errs.length || !concept || !draft) return;
-    setBusy(true);
-    try {
-      const res = await mutate(() =>
-        apiFetch<ProposeFactResponse>("/api/facts", {
-          method: "POST",
-          body: buildProposeRequest(form, concept, { documentId: id, pageNo: draft.pageNo, bbox: draft.rect }),
-        }),
-      );
-      let fact = res.fact;
-      let conflicts: FactDto[] | null = null;
-      try {
-        fact = await mutate(() => apiFetch<{ fact: FactDto }>(`/api/facts/${fact.id}/verify`, { method: "POST", body: {} }).then((r) => r.fact));
-      } catch (e) {
-        // A different value is already verified for the same slot: keep it as proposed and say so.
-        conflicts = e instanceof ApiError ? e.conflicts : null;
-        if (!conflicts) throw e;
-      }
-      setAdded({ ...res, fact });
-      setConflictWith(conflicts);
-      setDraft(null);
-      setResetKey((k) => k + 1);
-      setHintBox(null);
-      setForm((f) => ({ ...emptyFactForm(), accountId: f.accountId, currency: f.currency }));
-      setFocusedFactId(res.fact.id);
-      setFocusNonce((n) => n + 1);
-      setHintFocus(null);
-      await Promise.all([facts.reload(), detail.reload(), allDocs.reload()]);
-    } catch (e) {
-      setErrors([errorText(e)]);
-    } finally {
-      setBusy(false);
-    }
+    void add.run();
   };
 
-  const setStatus = async (status: "inbox" | "reviewed") => {
-    setStatusBusy(true);
-    try {
-      await mutate(() => apiFetch(`/api/documents/${id}`, { method: "PATCH", body: { status } satisfies UpdateDocumentRequest }));
-      setStatusError(null);
-      if (status === "reviewed") {
-        window.location.hash = hrefDocuments();
-        return;
-      }
-      await Promise.all([detail.reload(), allDocs.reload()]);
-    } catch (e) {
-      setStatusError(errorText(e));
-    } finally {
-      setStatusBusy(false);
+  const setStatus = useAction(async (status: "inbox" | "reviewed") => {
+    await mutate(() => apiFetch(`/api/documents/${id}`, { method: "PATCH", body: { status } satisfies UpdateDocumentRequest }));
+    if (status === "reviewed") {
+      window.location.hash = hrefDocuments();
+      return;
     }
-  };
+    await Promise.all([detail.reload(), allDocs.reload()]);
+  });
 
-  if (detail.error) return <section><p><a href="#/documents">Back to documents</a></p><ErrorNote>{detail.error}</ErrorNote></section>;
-  if (!doc) return <p>Loading...</p>;
+  if (detail.error) {
+    return (
+      <Page title="Document" back={{ href: "#/documents", label: "Back to documents" }}>
+        <Alert tone="danger">{detail.error}</Alert>
+      </Page>
+    );
+  }
+  if (!doc) return <Loading />;
 
   const warning = added ? mismatchWarning(added.valueMatchesSource, added.fact.sources[0]?.quotedText ?? null) : null;
 
+  const inst = institutions.find((i) => i.id === doc.institutionId);
+  const eyebrow = [inst?.name, periodLabel(doc)].filter(Boolean).join(" · ");
+
   return (
-    <section className="docview">
-      <div className="docview-head">
-        <a href="#/documents">All documents</a>
-        <h1 dir="auto">{doc.originalFilename}</h1>
-        <span className="spacer" />
-        {statusError && <ErrorNote>{statusError}</ErrorNote>}
-        {doc.status === "reviewed" ? (
-          <button onClick={() => void setStatus("inbox")} disabled={statusBusy}>Move back to inbox</button>
+    <Page
+      width="wide"
+      back={{ href: "#/documents", label: "All documents" }}
+      eyebrow={eyebrow}
+      title={<DataText>{doc.originalFilename}</DataText>}
+      actions={
+        doc.status === "reviewed" ? (
+          <Button onClick={() => void setStatus.run("inbox")} busy={setStatus.busy}>Move back to inbox</Button>
         ) : (
-          <button className="primary" onClick={() => void setStatus("reviewed")} disabled={statusBusy}>Mark reviewed</button>
-        )}
-      </div>
-      <div className="docview-grid">
-        <div className="docview-pdf">
-          <PdfViewer
-            source={{ url: `/api/documents/${id}/file` }}
-            highlights={highlights}
-            onSelect={onSelect}
-            focus={focus}
-            selectionResetKey={resetKey}
-          />
-          <p className="legend">
-            Boxes: <span className="swatch proposed" /> not verified <span className="swatch verified" /> verified{" "}
-            <span className="swatch rejected" /> rejected <span className="swatch hint" /> where it was last time
-          </p>
-        </div>
-
-        <div className="docview-side">
-          <DocDetails doc={doc} selectedText={draft?.text.trim() || null} onChanged={async () => { await Promise.all([detail.reload(), allDocs.reload()]); }} />
-
-          <div className="panel" ref={addPanel}>
-            <h3>Add a number</h3>
-            {!draft && !concept && <p>Drag a box on the PDF around a number. Its text is filled in for you.</p>}
-            {draft && (
-              <p className="small">
-                Box on page {draft.pageNo}: <Value>{draft.text.trim() || "(no text found under the box)"}</Value>
-              </p>
-            )}
-            {added && (
-              <div>
-                {conflictWith ? (
-                  <Warning>
-                    Saved <FactAmount fact={added.fact} /> (<FactConcept fact={added.fact} />) but not verified: a different value is already verified for the
-                    same kind of number, account, person and date ({conflictWith.map((c, i) => <span key={c.id}>{i > 0 && ", "}<a href={hrefFact(c.id)}>#{c.id}</a></span>)}).{" "}
-                    <a href={hrefFact(added.fact.id)}>Open it</a> to correct or compare.
-                  </Warning>
-                ) : (
-                  <p className="ok">Added and verified <FactAmount fact={added.fact} /> (<FactConcept fact={added.fact} />).</p>
-                )}
-                {warning && <Warning>{warning}</Warning>}
-              </div>
-            )}
-            <form onSubmit={(e) => { e.preventDefault(); void submit(); }}>
-              <FactFormFields
-                form={form}
-                onChange={updateForm}
-                concepts={concepts}
-                accounts={accounts}
-                institutionId={doc.institutionId}
-                period={period}
+          <Button variant="primary" onClick={() => void setStatus.run("reviewed")} busy={setStatus.busy}>Mark reviewed</Button>
+        )
+      }
+    >
+      <Stack gap={4}>
+        <Alert tone="danger">{setStatus.error}</Alert>
+        <SplitLayout
+          main={
+            <Stack gap={2}>
+              <PdfViewer
+                source={{ url: `/api/documents/${id}/file` }}
+                highlights={highlights}
+                onSelect={onSelect}
+                focus={focus}
+                selectionResetKey={resetKey}
               />
-              {errors.map((m) => <ErrorNote key={m}>{m}</ErrorNote>)}
-              <p>
-                <button type="submit" disabled={busy}>Add this number</button>{" "}
-                {draft && <button type="button" onClick={() => { setDraft(null); setResetKey((k) => k + 1); }}>Clear box</button>}
-              </p>
-            </form>
-          </div>
+              <PdfLegend />
+            </Stack>
+          }
+          aside={
+            <Stack gap={4}>
+              <DocDetails doc={doc} selectedText={draft?.text.trim() || null} onChanged={async () => { await Promise.all([detail.reload(), allDocs.reload()]); }} />
 
-          <SameAsLastTime
-            doc={doc}
-            previous={previous}
-            suggestions={suggestions}
-            loading={prevFacts.loading || allDocs.loading}
-            onPick={useSuggestion}
-          />
+              <Panel title="Add a number" revealKey={draft ? `${draft.pageNo}:${draft.rect.join(",")}` : null}>
+                <Stack gap={3}>
+                  {!draft && !concept && <Text as="p">Drag a box on the PDF around a number. Its text is filled in for you.</Text>}
+                  {draft && (
+                    <Text as="p" size="sm">
+                      Box on page <Value>{draft.pageNo}</Value>: <Value>{draft.text.trim() || "(no text found under the box)"}</Value>
+                    </Text>
+                  )}
+                  {added && (
+                    <Stack gap={2}>
+                      {conflictWith ? (
+                        <Alert tone="warning">
+                          Saved <FactAmount fact={added.fact} /> (<FactConcept fact={added.fact} />) but not verified: a different value is already verified for the
+                          same kind of number, account, person and date ({conflictWith.map((c, i) => <Text key={c.id}>{i > 0 && ", "}<Link href={hrefFact(c.id)}>#{c.id}</Link></Text>)}).{" "}
+                          <Link href={hrefFact(added.fact.id)}>Open it</Link> to correct or compare.
+                        </Alert>
+                      ) : (
+                        <Alert tone="success">Added and verified <FactAmount fact={added.fact} /> (<FactConcept fact={added.fact} />).</Alert>
+                      )}
+                      <Alert tone="warning">{warning}</Alert>
+                    </Stack>
+                  )}
+                  <Form onSubmit={submit}>
+                    <FactFormFields
+                      form={form}
+                      onChange={updateForm}
+                      concepts={concepts}
+                      accounts={accounts}
+                      institutionId={doc.institutionId}
+                      period={period}
+                    />
+                    {errors.map((m) => <Alert tone="danger" key={m}>{m}</Alert>)}
+                    <Alert tone="danger">{add.error}</Alert>
+                    <Inline>
+                      <Button type="submit" variant="primary" busy={add.busy}>Add this number</Button>
+                      {draft && <Button onClick={() => { setDraft(null); setResetKey((k) => k + 1); }}>Clear box</Button>}
+                    </Inline>
+                  </Form>
+                </Stack>
+              </Panel>
 
-          <div className="panel">
-            <h3>Numbers from this document</h3>
-            <ErrorNote>{facts.error}</ErrorNote>
-            <label className="small">
-              <input type="checkbox" checked={showSuperseded} onChange={(e) => setShowSuperseded(e.target.checked)} /> Show replaced numbers
-            </label>
-            {liveFacts.length === 0 && !facts.loading && <p className="muted">None yet.</p>}
-            <ul className="facts">
-              {liveFacts.map((f) => (
-                <li key={f.id} className={f.id === focusedFactId ? "focused" : undefined}>
-                  <button className="linklike" onClick={() => clickFact(f)} title="Show where this number is on the page">
-                    <StatusBadge status={f.status} /> <FactConcept fact={f} /> <FactAmount fact={f} />
-                  </button>
-                  <div className="small muted">
-                    {factDateLabel(f)} {f.accountName && <>· <Text>{f.accountName}</Text></>}
-                    {f.valueMatchesSource === false && <span className="warn"> · differs from the box</span>}
-                    {" "}
-                    <a href={hrefFact(f.id)}>History</a>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </div>
-      </div>
-    </section>
+              <SameAsLastTime
+                doc={doc}
+                previous={previous}
+                suggestions={suggestions}
+                loading={prevFacts.loading || allDocs.loading}
+                onPick={useSuggestion}
+              />
+
+              <Panel title="Numbers from this document">
+                <Stack gap={3}>
+                  <Alert tone="danger">{facts.error}</Alert>
+                  <Checkbox checked={showSuperseded} onChange={setShowSuperseded} label="Show replaced numbers" />
+                  {liveFacts.length === 0 && !facts.loading && <Empty>None yet.</Empty>}
+                  <List divided>
+                    {liveFacts.map((f) => (
+                      <ListItem
+                        key={f.id}
+                        current={f.id === focusedFactId}
+                        onClick={() => clickFact(f)}
+                        title="Show where this number is on the page"
+                        aside={
+                          <>
+                            {factDateLabel(f)} {f.accountName && <>· <DataText>{f.accountName}</DataText></>}
+                            {f.valueMatchesSource === false && <Text tone="warning"> · differs from the box</Text>}
+                            {" · "}
+                            <Link href={hrefFact(f.id)}>History</Link>
+                          </>
+                        }
+                      >
+                        <Inline>
+                          <StatusBadge status={f.status} /> <FactConcept fact={f} /> <FactAmount fact={f} />
+                        </Inline>
+                      </ListItem>
+                    ))}
+                  </List>
+                </Stack>
+              </Panel>
+            </Stack>
+          }
+        />
+      </Stack>
+    </Page>
   );
 }
 
@@ -326,11 +334,12 @@ function DocDetails({ doc, selectedText, onChanged }: { doc: DocumentDetailDto; 
     taxYear: doc.taxYear === null ? "" : String(doc.taxYear),
   });
   const [f, setF] = useState(initial);
-  const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
-  const [busy, setBusy] = useState(false);
   const [linkId, setLinkId] = useState("");
+  const [createOpen, setCreateOpen] = useState(false);
   const [open, setOpen] = useState(doc.institutionId === null || doc.accountIds.length === 0 || (doc.periodEnd === null && doc.taxYear === null));
+  // One busy/error pair for saving and linking.
+  const { run, busy, error, setError } = useAction((task: () => Promise<void>) => task());
   useEffect(() => setF(initial()), // eslint-disable-line react-hooks/exhaustive-deps
     [doc.id, doc.institutionId, doc.docType, doc.language, doc.periodStart, doc.periodEnd, doc.taxYear]);
 
@@ -344,19 +353,12 @@ function DocDetails({ doc, selectedText, onChanged }: { doc: DocumentDetailDto; 
       .catch((e) => setError(errorText(e)));
   }, [doc.id, inferredInstitution]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const patch = async (body: UpdateDocumentRequest, flashSaved: boolean) => {
-    setBusy(true);
-    try {
+  const patch = (body: UpdateDocumentRequest, flashSaved: boolean) =>
+    run(async () => {
       await mutate(() => apiFetch(`/api/documents/${doc.id}`, { method: "PATCH", body }));
-      setError(null);
       setSaved(flashSaved);
       await onChanged();
-    } catch (e) {
-      setError(errorText(e));
-    } finally {
-      setBusy(false);
-    }
-  };
+    });
 
   const save = () => {
     if (f.taxYear !== "" && !/^\d{4}$/.test(f.taxYear)) return setError("Tax year must be 4 digits, like 2025.");
@@ -380,81 +382,81 @@ function DocDetails({ doc, selectedText, onChanged }: { doc: DocumentDetailDto; 
 
   const link = async (accountId = Number(linkId)) => {
     if (!accountId) return;
-    setBusy(true);
-    try {
+    await run(async () => {
       await mutate(() => apiFetch(`/api/documents/${doc.id}/accounts`, { method: "POST", body: { accountId } }));
       setLinkId("");
       await onChanged();
-    } catch (e) {
-      setError(errorText(e));
-    } finally {
-      setBusy(false);
-    }
+    });
   };
 
   return (
-    <details className="panel" open={open} onToggle={(e) => setOpen(e.currentTarget.open)}>
-      <summary>
-        <strong>About this document</strong>{" "}
-        <span className="muted small">
-          {doc.status === "reviewed" ? "reviewed" : "needs review"} {periodLabel(doc)}
-        </span>
-      </summary>
-      <div className="fields">
-        <label>
-          <span>Institution</span>
-          <select value={f.institutionId} onChange={(e) => set({ institutionId: e.target.value })}>
-            <option value="">Not set</option>
-            {sortInstitutions(institutions).map((i) => <option key={i.id} value={i.id} dir="auto">{i.name}</option>)}
-          </select>
-        </label>
-        <div className="row">
-          <label>
-            <span>Document type</span>
-            <select value={f.docType} onChange={(e) => set({ docType: e.target.value })}>
-              <option value="">Not set</option>
-              {docTypes.map((t) => <option key={t.id} value={t.id}>{pickLabel(t.labelEn, t.labelHe, doc.language)}</option>)}
-            </select>
-          </label>
-          <label>
-            <span>Language</span>
-            <select value={f.language} onChange={(e) => set({ language: e.target.value })}>
-              <option value="">Not set</option>
-              <option value="en">English</option>
-              <option value="he">Hebrew</option>
-            </select>
-          </label>
-        </div>
-        <div className="row">
-          <label><span>Period start</span><input type="date" value={f.periodStart} onChange={(e) => set({ periodStart: e.target.value })} /></label>
-          <label><span>Period end</span><input type="date" value={f.periodEnd} onChange={(e) => set({ periodEnd: e.target.value })} /></label>
-        </div>
-        <div className="row">
-          <label><span>Tax year</span><input type="text" size={6} maxLength={4} value={f.taxYear} onChange={(e) => set({ taxYear: e.target.value })} /></label>
-        </div>
-        <ErrorNote>{error}</ErrorNote>
-        <p>
-          <button onClick={save} disabled={busy}>Save details</button> {saved && <span className="ok">Saved</span>}
-        </p>
-        <div>
-          <span className="label">Accounts</span>
-          {doc.accountIds.length === 0 && <span className="muted"> none linked yet</span>}
+    <Disclosure
+      summary="About this document"
+      meta={`${doc.status === "reviewed" ? "reviewed" : "needs review"} ${periodLabel(doc)}`}
+      open={open}
+      onToggle={setOpen}
+    >
+      <Stack gap={4}>
+        <Form onSubmit={save} gap={3}>
+          <Field label="Institution">
+            <Select
+              value={f.institutionId}
+              onChange={(v) => set({ institutionId: v })}
+              placeholder="Not set"
+              options={sortInstitutions(institutions).map((i) => ({ value: String(i.id), label: i.name, dir: "auto" }))}
+            />
+          </Field>
+          <FieldRow>
+            <Field label="Document type" grow>
+              <Select
+                value={f.docType}
+                onChange={(v) => set({ docType: v })}
+                placeholder="Not set"
+                options={docTypes.map((t) => ({ value: t.id, label: pickLabel(t.labelEn, t.labelHe, doc.language) }))}
+              />
+            </Field>
+            <Field label="Language" grow>
+              <Select
+                value={f.language}
+                onChange={(v) => set({ language: v })}
+                placeholder="Not set"
+                options={[{ value: "en", label: "English" }, { value: "he", label: "Hebrew" }]}
+              />
+            </Field>
+          </FieldRow>
+          <FieldRow>
+            <Field label="Period start" grow><DateInput value={f.periodStart} onChange={(v) => set({ periodStart: v })} /></Field>
+            <Field label="Period end" grow><DateInput value={f.periodEnd} onChange={(v) => set({ periodEnd: v })} /></Field>
+          </FieldRow>
+          <FieldRow>
+            <Field label="Tax year"><TextInput maxLength={4} value={f.taxYear} onChange={(v) => set({ taxYear: v })} /></Field>
+          </FieldRow>
+          <Alert tone="danger">{error}</Alert>
+          <Inline>
+            <Button type="submit" busy={busy}>Save details</Button>
+            {saved && <Text tone="success">Saved</Text>}
+          </Inline>
+        </Form>
+        <Stack gap={2}>
+          <Text size="sm" weight="medium" tone="muted">Accounts</Text>
+          {doc.accountIds.length === 0 && <Text tone="muted">none linked yet</Text>}
           {doc.accountIds.map((aid) => {
             const a = accounts.find((x) => x.id === aid);
-            return a ? <div key={aid}><AccountName account={a} /></div> : null;
+            return a ? <AccountName key={aid} account={a} /> : null;
           })}
-          <div className="row">
+          <FieldRow>
             <AccountSelect accounts={accounts.filter((a) => !doc.accountIds.includes(a.id))} institutionId={doc.institutionId} value={linkId} onChange={setLinkId} noneLabel="Link an account..." />
-            {linkId !== "" && <button onClick={() => void link()} disabled={busy}>Link account</button>}
-          </div>
-          <details>
-            <summary>Create an account from this document</summary>
-            <p className="muted small">Drag a box around the account number on the PDF, then use the boxed text below. The new account is linked to this document.</p>
-            <AddAccount institutionId={doc.institutionId} pickedText={selectedText} onCreated={(a) => link(a.id)} />
-          </details>
-        </div>
-      </div>
-    </details>
+            {linkId !== "" && <Button onClick={() => void link()} busy={busy}>Link account</Button>}
+          </FieldRow>
+          <Disclosure summary="Create an account from this document" open={createOpen} onToggle={setCreateOpen}>
+            <Stack gap={3}>
+              <Text as="p" size="sm" tone="muted">Drag a box around the account number on the PDF, then use the boxed text below. The new account is linked to this document.</Text>
+              <AddAccount institutionId={doc.institutionId} pickedText={selectedText} onCreated={async (a) => { await link(a.id); }} />
+            </Stack>
+          </Disclosure>
+        </Stack>
+      </Stack>
+    </Disclosure>
   );
 }
 
@@ -476,38 +478,40 @@ function SameAsLastTime({
   const { concepts } = useRefData();
   if (doc.accountIds.length === 0) {
     return (
-      <div className="panel">
-        <h3>Same as last time</h3>
-        <p className="muted">Link this document to an account (under "About this document") to see what you recorded from the previous one.</p>
-      </div>
+      <Panel title="Same as last time">
+        <Empty>Link this document to an account (under "About this document") to see what you recorded from the previous one.</Empty>
+      </Panel>
     );
   }
   return (
-    <div className="panel">
-      <h3>Same as last time</h3>
-      {loading && <p className="muted">Looking...</p>}
-      {!loading && !previous && <p className="muted">No earlier document for this account has numbers yet.</p>}
-      {previous && (
-        <>
-          <p className="small">
-            From <a href={`#/documents/${previous.id}`} dir="auto">{previous.originalFilename}</a> <span className="muted">{periodLabel(previous)}</span>. Click one, then
-            draw a box around it here.
-          </p>
-          <ul className="suggestions">
-            {suggestions.map((s) => {
-              const c = concepts.find((x) => x.id === s.conceptId);
-              return (
-                <li key={`${s.conceptId}|${s.accountId}`}>
-                  <button onClick={() => onPick(s)}>
-                    <Text>{c ? conceptLabel(c, s.language) : s.labelEn}</Text>
-                  </button>{" "}
-                  <span className="muted small">was <Value>{s.formatted}</Value></span>
-                </li>
-              );
-            })}
-          </ul>
-        </>
-      )}
-    </div>
+    <Panel title="Same as last time">
+      <Stack gap={3}>
+        {loading && <Empty>Looking...</Empty>}
+        {!loading && !previous && <Empty>No earlier document for this account has numbers yet.</Empty>}
+        {previous && (
+          <>
+            <Text as="p" size="sm">
+              From <Link href={hrefDocument(previous.id)}><DataText>{previous.originalFilename}</DataText></Link> <Text tone="muted">{periodLabel(previous)}</Text>. Click one, then
+              draw a box around it here.
+            </Text>
+            <List>
+              {suggestions.map((s) => {
+                const c = concepts.find((x) => x.id === s.conceptId);
+                return (
+                  <ListItem key={`${s.conceptId}|${s.accountId}`}>
+                    <Inline>
+                      <Button size="sm" onClick={() => onPick(s)}>
+                        <DataText>{c ? conceptLabel(c, s.language) : s.labelEn}</DataText>
+                      </Button>
+                      <Text size="sm" tone="muted">was <Value>{s.formatted}</Value></Text>
+                    </Inline>
+                  </ListItem>
+                );
+              })}
+            </List>
+          </>
+        )}
+      </Stack>
+    </Panel>
   );
 }

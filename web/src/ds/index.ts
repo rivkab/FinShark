@@ -1,0 +1,22 @@
+// The design system's public surface. Pages import primitives from here only.
+export type { Gap } from "./cx.ts";
+export { Icon, type IconName } from "./icons.tsx";
+export { Alert, type AlertProps } from "./Alert.tsx";
+export { Badge, StatusMark, type BadgeProps, type StatusMarkProps } from "./Badge.tsx";
+export { Button, Link, LinkButton, RowAction, type ButtonProps, type ButtonSize, type ButtonVariant, type LinkButtonProps, type LinkProps } from "./Button.tsx";
+export { Combobox, type ComboboxProps } from "./Combobox.tsx";
+export { DataText, Value } from "./DataText.tsx";
+export { Dropzone, type DropzoneProps } from "./Dropzone.tsx";
+export { Empty, Loading } from "./Empty.tsx";
+export { Field, FieldGroup, FieldRow, Form, type FieldProps } from "./Form.tsx";
+export { Checkbox, DateInput, Select, TextArea, TextInput, type SelectGroup, type SelectOption, type SelectProps, type TextInputProps } from "./Input.tsx";
+export { KeyValues, type KeyValueItem } from "./KeyValues.tsx";
+export { List, ListItem, type ListItemProps } from "./List.tsx";
+export { Modal } from "./Modal.tsx";
+export { Disclosure, Page, Panel, Section, SplitLayout, type DisclosureProps, type PageProps, type PanelProps, type SectionProps } from "./Page.tsx";
+export { AppHeader, AppShell, Avatar, Brand, NavTabs, UserChip, type AppShellProps, type NavItem } from "./Shell.tsx";
+export { Inline, Stack, type InlineProps, type StackProps } from "./Stack.tsx";
+export { Stat, StatGroup, type StatProps } from "./Stat.tsx";
+export { Table, TableBody, TableHead, Td, Th, Tr, type ThProps } from "./Table.tsx";
+export { Heading, Kbd, Text, type HeadingProps, type TextProps, type Tone } from "./Text.tsx";
+export { Timeline, TimelineItem } from "./Timeline.tsx";

@@ -1,0 +1,21 @@
+.ds-data-text--block {
+  text-align: left;
+  white-space: pre-wrap;
+}
+
+.ds-value {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.94em;
+  white-space: nowrap;
+}
+
+.ds-value--sm { font-size: 12px; }
+.ds-value--md { font-size: 14px; }
+.ds-value--lg { font-size: var(--text-lg); }
+
+.ds-value--muted { color: var(--color-text-muted); }
+.ds-value--subtle { color: var(--color-text-subtle); }
+.ds-value--success { color: var(--color-success); }
+.ds-value--warning { color: var(--color-warning); }
+.ds-value--danger { color: var(--color-danger); }

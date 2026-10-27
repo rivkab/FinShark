@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { PdfViewer, type PdfHighlight, type PdfSelection } from "./PdfViewer.tsx";
-import { Cell, Text, Value } from "./Value.tsx";
+import { PdfViewer, type PdfHighlight, type PdfSelection } from "./pdf/PdfViewer.tsx";
+import { Checkbox, DataText, KeyValues, Page, Panel, Section, Stack, Table, TableBody, TableHead, Td, Text, Th, Tr, Value } from "./ds/index.ts";
 
 // Region of "$83,421.17" in sample.pdf (PDF points, unrotated, origin bottom-left).
 const EXISTING: PdfHighlight[] = [{ pageNo: 1, rect: [396, 596, 462, 612] }];
@@ -10,81 +10,68 @@ export function DemoPage() {
   const [highlighted, setHighlighted] = useState(true);
 
   return (
-    <section>
-      <h1>Documents</h1>
-      <p>
-        Demo: drag a rectangle over a number on the sample statement. The page number, the box in PDF points and the text
-        under it appear below. The orange box is an existing source region.
-      </p>
-      <label>
-        <input type="checkbox" checked={highlighted} onChange={(e) => setHighlighted(e.target.checked)} /> Show existing
-        source region
-      </label>
-      <PdfViewer source={{ url: "/sample.pdf" }} highlights={highlighted ? EXISTING : []} onSelect={setSelection} />
-      <h2>Selection</h2>
-      <pre className="selection" data-testid="selection">
-        {selection
-          ? JSON.stringify({ pageNo: selection.pageNo, rect: selection.rect.map((n) => +n.toFixed(2)), text: selection.text }, null, 2)
-          : "Nothing selected yet."}
-      </pre>
-
-      <h2>Mixed Hebrew / English cells</h2>
-      <table className="data">
-        <thead>
-          <tr>
-            <th>Account</th>
-            <th>Label</th>
-            <th className="num">Amount</th>
-            <th>Note</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <Cell>Example Brokerage ...4821</Cell>
-            <Cell>Ending balance</Cell>
-            <Cell numeric>
-              <Value>$83,421.17</Value>
-            </Cell>
-            <Cell>
-              as of <Value>12/31/2025</Value>
-            </Cell>
-          </tr>
-          <tr>
-            <Cell>קרן פנסיה מגדל</Cell>
-            <Cell>יתרה לסוף תקופה</Cell>
-            <Cell numeric>
-              <Value>₪42,318.00</Value>
-            </Cell>
-            <Cell>
-              נכון ל-<Value>31/12/2025</Value>
-            </Cell>
-          </tr>
-          <tr>
-            <Cell>
-              <Text>בנק לאומי</Text> checking <Value>…9087</Value>
-            </Cell>
-            <Cell>Interest paid / ריבית</Cell>
-            <Cell numeric>
-              <Value>₪1,204.33</Value>
-            </Cell>
-            <Cell>
-              <Text>דוח שנתי</Text> (annual report) <Value>2025</Value>
-            </Cell>
-          </tr>
-          <tr>
-            <Cell>
-              <Text>חשבון חיסכון</Text> <Value>#12-345-678</Value>
-            </Cell>
-            <Cell>
-              <Text>סה"כ הפקדות</Text>
-            </Cell>
-            <Cell numeric>
-              <Value>-₪5,000.00</Value>
-            </Cell>
-            <Cell>W-2 copy 2 of 3 / עותק 2 מתוך 3</Cell>
-          </tr>
-        </tbody>
-      </table>
-    </section>
+    <Page title="Viewer demo">
+      <Stack gap={5}>
+        <Text as="p">
+          Demo: drag a rectangle over a number on the sample statement. The page number, the box in PDF points and the text
+          under it appear below. The orange box is an existing source region.
+        </Text>
+        <Checkbox checked={highlighted} onChange={setHighlighted} label="Show existing source region" />
+        <PdfViewer source={{ url: "/sample.pdf" }} highlights={highlighted ? EXISTING : []} onSelect={setSelection} />
+      </Stack>
+      <Section title="Selection">
+        <Panel>
+          {selection ? (
+            <KeyValues
+              items={[
+                { label: "pageNo", value: <Value>{String(selection.pageNo)}</Value> },
+                { label: "rect", value: <Value>{selection.rect.map((n) => n.toFixed(2)).join(", ")}</Value> },
+                { label: "text", value: <DataText>{selection.text}</DataText> },
+              ]}
+            />
+          ) : (
+            <Text as="div">Nothing selected yet.</Text>
+          )}
+        </Panel>
+      </Section>
+      <Section title="Mixed Hebrew / English cells">
+        <Table aria-label="Mixed Hebrew and English cells">
+          <TableHead>
+            <Tr>
+              <Th>Account</Th>
+              <Th>Label</Th>
+              <Th align="end">Amount</Th>
+              <Th>Note</Th>
+            </Tr>
+          </TableHead>
+          <TableBody>
+            <Tr>
+              <Td>Example Brokerage ...4821</Td>
+              <Td>Ending balance</Td>
+              <Td align="end"><Value>$83,421.17</Value></Td>
+              <Td>as of <Value>12/31/2025</Value></Td>
+            </Tr>
+            <Tr>
+              <Td><DataText>קרן פנסיה מגדל</DataText></Td>
+              <Td><DataText>יתרה לסוף תקופה</DataText></Td>
+              <Td align="end"><Value>₪42,318.00</Value></Td>
+              <Td><DataText>נכון ל-</DataText><Value>31/12/2025</Value></Td>
+            </Tr>
+            <Tr>
+              <Td><DataText>בנק לאומי</DataText> checking <Value>…9087</Value></Td>
+              <Td>Interest paid / <DataText>ריבית</DataText></Td>
+              <Td align="end"><Value>₪1,204.33</Value></Td>
+              <Td><DataText>דוח שנתי</DataText> (annual report) <Value>2025</Value></Td>
+            </Tr>
+            <Tr>
+              <Td><DataText>חשבון חיסכון</DataText> <Value>#12-345-678</Value></Td>
+              <Td><DataText>סה"כ הפקדות</DataText></Td>
+              <Td align="end"><Value>-₪5,000.00</Value></Td>
+              <Td>W-2 copy 2 of 3 / <DataText>עותק 2 מתוך 3</DataText></Td>
+            </Tr>
+          </TableBody>
+        </Table>
+      </Section>
+    </Page>
   );
 }

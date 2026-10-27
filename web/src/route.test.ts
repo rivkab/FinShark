@@ -25,6 +25,7 @@ describe("parseHash", () => {
     expect(parseHash("#/accounts")).toEqual({ page: "accounts" });
     expect(parseHash("#/people")).toEqual({ page: "people" });
     expect(parseHash("#/demo")).toEqual({ page: "demo" });
+    expect(parseHash("#/design")).toEqual({ page: "design" });
   });
   it("round-trips the href builders", () => {
     expect(parseHash(hrefDocument(5, 6))).toEqual({ page: "document", id: 5, factId: 6 });

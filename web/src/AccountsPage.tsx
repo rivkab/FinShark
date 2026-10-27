@@ -14,15 +14,59 @@ import type {
   SetAccountTypeRequest,
   SetAccountOwnersRequest,
 } from "@finshark/shared";
-import { apiFetch, errorText } from "./api.ts";
-import { hrefDocuments } from "./route.ts";
+import { apiFetch } from "./api.ts";
+import { hrefDocuments, hrefFacts } from "./route.ts";
 import { useActor, useRefData } from "./context.tsx";
 import { sortInstitutions } from "./institutionSort.ts";
 import { sortAccounts, type AccountSortKey, type SortDir } from "./accountSort.ts";
+import { coverageNote, currencyTotals, newestBalanceDate } from "./accountTotals.ts";
+import { formatDay, formatDayShort } from "./displayDate.ts";
 import { ACCOUNT_TYPE_LABEL, INSTITUTION_KIND_LABEL, currencyForCountry, languageForCountry } from "./labels.ts";
 import { latestBalances } from "./latestBalance.ts";
-import { Cell, Text, Value } from "./Value.tsx";
-import { ErrorNote, InstitutionName, AccountName, Warning, langLabel, useLoad } from "./ui.tsx";
+import {
+  Alert,
+  Button,
+  Checkbox,
+  DataText,
+  DateInput,
+  Empty,
+  Field,
+  FieldGroup,
+  FieldRow,
+  Form,
+  Inline,
+  Link,
+  Page,
+  Panel,
+  RowAction,
+  Section,
+  Select,
+  Stack,
+  Stat,
+  StatGroup,
+  StatusMark,
+  Table,
+  TableBody,
+  TableHead,
+  Td,
+  Text,
+  TextArea,
+  TextInput,
+  Th,
+  Tr,
+  Value,
+} from "./ds/index.ts";
+import { InstitutionName, AccountName, langLabel, useAction, useLoad } from "./ui.tsx";
+
+const ACCOUNT_TYPE_OPTIONS = ACCOUNT_TYPES.map((t) => ({ value: t, label: ACCOUNT_TYPE_LABEL[t] }));
+const INSTITUTION_KIND_OPTIONS = INSTITUTION_KINDS.map((k) => ({ value: k, label: INSTITUTION_KIND_LABEL[k] }));
+const CADENCE_OPTIONS = [
+  { value: "monthly", label: "Monthly" },
+  { value: "quarterly", label: "Quarterly" },
+  { value: "semiannual", label: "Twice a year" },
+  { value: "annual", label: "Once a year" },
+  { value: "irregular", label: "Irregular" },
+];
 
 export function AccountsPage() {
   const { institutions, accounts, people } = useRefData();
@@ -31,96 +75,146 @@ export function AccountsPage() {
     () => apiFetch<{ facts: FactDto[] }>("/api/facts?concept=balance.ending").then((r) => latestBalances(r.facts)),
     0,
   );
+  const proposed = useLoad(() => apiFetch<{ facts: FactDto[] }>("/api/facts?status=proposed").then((r) => r.facts.length), 0);
   const [sort, setSort] = useState<{ key: AccountSortKey; dir: SortDir }>({ key: "name", dir: "asc" });
   const sorted = sortAccounts(accounts, sort.key, sort.dir, people);
   /** Clicking the active column flips the direction; another column starts ascending. */
   const sortBy = (key: AccountSortKey) =>
     setSort((s) => (s.key === key ? { key, dir: s.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" }));
   const sortHeader = (key: AccountSortKey, label: string) => (
-    <th aria-sort={sort.key === key ? (sort.dir === "asc" ? "ascending" : "descending") : "none"}>
-      <button type="button" className="sort" onClick={() => sortBy(key)}>
-        {label}{sort.key === key ? (sort.dir === "asc" ? " ▲" : " ▼") : ""}
-      </button>
-    </th>
+    <Th sort={sort.key === key ? sort.dir : "none"} onSort={() => sortBy(key)}>{label}</Th>
   );
-  return (
-    <section>
-      <h1>Accounts</h1>
-      <h2>Accounts</h2>
-      {accounts.length === 0 ? (
-        <p>No accounts yet.{institutions.length === 0 ? " Add an institution first." : ""}</p>
-      ) : (
-        <table className="data">
-          <thead>
-            <tr>{sortHeader("name", "Account")}{sortHeader("institution", "Institution")}{sortHeader("type", "Type")}{sortHeader("owners", "Owners")}<th>Account number</th>{sortHeader("country", "Country")}<th>Currency</th><th>Latest value</th><th>Notes</th></tr>
-          </thead>
-          <tbody>
-            {sorted.map((a) => (
-              <AccountRow
-                key={a.id}
-                account={a}
-                balance={balances.data ? (balances.data.get(a.id) ?? null) : undefined}
-                docCount={docs.data ? docs.data.filter((d) => d.accountIds.includes(a.id)).length : null}
-              />
-            ))}
-          </tbody>
-        </table>
-      )}
-      {institutions.some((i) => i.kind !== "employer") && <AddAccount />}
 
-      <h2>Institutions</h2>
-      {institutions.length === 0 ? (
-        <p>No institutions yet. Add the banks, brokers and funds your documents come from.</p>
-      ) : (
-        <table className="data">
-          <thead>
-            <tr><th>Name</th><th>Kind</th><th>Country</th><th>Language</th></tr>
-          </thead>
-          <tbody>
-            {sortInstitutions(institutions).map((i) => (
-              <InstitutionRow key={i.id} inst={i} />
-            ))}
-          </tbody>
-        </table>
-      )}
-      <AddInstitution />
-    </section>
+  const newest = balances.data ? newestBalanceDate(balances.data) : null;
+  const totals = balances.data ? currencyTotals(accounts, balances.data) : [];
+  const toCheck = proposed.data ?? 0;
+
+  return (
+    <Page eyebrow={newest ? `Latest statements · as of ${formatDay(newest)}` : "Latest statements"} title="Accounts">
+      <Stack gap={7}>
+        <StatGroup>
+          {totals.map((t) => (
+            <Stat
+              key={t.currency}
+              label={`${t.currency} accounts, verified`}
+              value={t.formatted === null ? "None verified" : <Value>{t.formatted}</Value>}
+              note={coverageNote(t)}
+            />
+          ))}
+          {proposed.error && <Stat label="Awaiting check" value="?" note="Could not load the values to check" tone="warning" />}
+          {proposed.data !== null && (
+            <Stat
+              label="Awaiting check"
+              value={toCheck === 0 ? "None" : toCheck === 1 ? "1 value" : `${toCheck} values`}
+              note={toCheck === 0 ? undefined : "Verify or correct them"}
+              {...(toCheck > 0 ? { tone: "warning" as const, href: hrefFacts({ status: "proposed" }) } : {})}
+            />
+          )}
+        </StatGroup>
+
+        {accounts.length === 0 ? (
+          <Empty>No accounts yet.{institutions.length === 0 ? " Add an institution first." : ""}</Empty>
+        ) : (
+          <Table aria-label="Accounts">
+            <TableHead>
+              <Tr>
+                {sortHeader("name", "Account")}
+                {sortHeader("institution", "Institution")}
+                {sortHeader("type", "Type")}
+                {sortHeader("owners", "Owners")}
+                <Th>Number</Th>
+                <Th align="end">Latest value</Th>
+              </Tr>
+            </TableHead>
+            <TableBody>
+              {sorted.map((a) => (
+                <AccountRow
+                  key={a.id}
+                  account={a}
+                  balance={balances.data ? (balances.data.get(a.id) ?? null) : undefined}
+                  docCount={docs.data ? docs.data.filter((d) => d.accountIds.includes(a.id)).length : null}
+                />
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </Stack>
+
+      <Section title="Institutions">
+        {institutions.length === 0 ? (
+          <Empty>No institutions yet. Add the banks, brokers and funds your documents come from.</Empty>
+        ) : (
+          <Table aria-label="Institutions">
+            <TableHead>
+              <Tr><Th>Name</Th><Th>Kind</Th><Th>Country</Th><Th>Language</Th></Tr>
+            </TableHead>
+            <TableBody>
+              {sortInstitutions(institutions).map((i) => (
+                <InstitutionRow key={i.id} inst={i} />
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </Section>
+
+      <Section title="Add">
+        <Stack gap={5}>
+          {institutions.some((i) => i.kind !== "employer") && <AddAccount />}
+          <AddInstitution />
+        </Stack>
+      </Section>
+    </Page>
   );
 }
 
 /** Checkboxes for choosing people; at least one must stay checked. */
 function OwnerPicker({ selected, onChange }: { selected: number[]; onChange: (ids: number[]) => void }) {
   const owners = useRefData().people.filter((p) => p.ownsAccounts);
-  if (owners.length === 0) return <p className="muted">Add a person who owns accounts first (People page); every account needs an owner.</p>;
+  if (owners.length === 0) return <Text tone="muted">Add a person who owns accounts first (People page); every account needs an owner.</Text>;
   return (
-    <div className="owner-picker">
+    <FieldGroup label="Owner(s)">
       {owners.map((p) => (
-        <label key={p.id} className="inline">
-          <input
-            type="checkbox"
-            checked={selected.includes(p.id)}
-            onChange={(e) => onChange(e.target.checked ? [...selected, p.id] : selected.filter((x) => x !== p.id))}
-          />{" "}
-          <Text>{p.displayName}</Text>{" "}
-        </label>
+        <Checkbox
+          key={p.id}
+          checked={selected.includes(p.id)}
+          onChange={(checked) => onChange(checked ? [...selected, p.id] : selected.filter((x) => x !== p.id))}
+          label={<DataText>{p.displayName}</DataText>}
+        />
       ))}
-    </div>
+    </FieldGroup>
   );
 }
 
 function OwnersView({ account }: { account: AccountDto }) {
   const { people } = useRefData();
+  if (account.owners.length === 0) return <Text tone="muted">none recorded</Text>;
   return (
-    <>
-      {account.owners.length === 0 && <div className="muted">none recorded</div>}
+    <Stack gap={1}>
       {account.owners.map((o) => (
-        <div key={`${o.personId}-${o.role}`}>
-          <Text>{people.find((p) => p.id === o.personId)?.displayName ?? `#${o.personId}`}</Text>
-          {o.role !== "owner" && <span className="muted"> ({o.role})</span>}
-          {o.share && <span className="muted"> <Value>{o.share}</Value></span>}
-        </div>
+        <Text as="div" key={`${o.personId}-${o.role}`}>
+          <DataText>{people.find((p) => p.id === o.personId)?.displayName ?? `#${o.personId}`}</DataText>
+          {o.role !== "owner" && <Text tone="muted"> ({o.role})</Text>}
+          {o.share && <Text tone="muted"> <Value>{o.share}</Value></Text>}
+        </Text>
       ))}
-    </>
+    </Stack>
+  );
+}
+
+/** The latest balance: the amount, and whether it is verified and as of when. */
+function LatestValue({ balance }: { balance: FactDto | null | undefined }) {
+  if (balance === undefined) return null;
+  if (balance === null) return <Text tone="muted">none yet</Text>;
+  const date = balance.instantDate ? formatDayShort(balance.instantDate) : "";
+  return (
+    <Stack gap={1}>
+      <Value size="lg">{balance.formatted}</Value>
+      {balance.status === "verified" ? (
+        <StatusMark tone="success" icon="check">verified · {date}</StatusMark>
+      ) : (
+        <StatusMark tone="warning" icon="clock">not verified · {date}</StatusMark>
+      )}
+    </Stack>
   );
 }
 
@@ -134,8 +228,6 @@ function AccountRow({ account: a, docCount, balance }: { account: AccountDto; do
   const [type, setType] = useState("");
   const [notes, setNotes] = useState("");
   const [altName, setAltName] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
 
   const startEdit = () => {
     setSelected(a.owners.map((o) => o.personId));
@@ -148,119 +240,108 @@ function AccountRow({ account: a, docCount, balance }: { account: AccountDto; do
     setEditing(true);
   };
 
-  const save = async () => {
+  const { run, busy, error, setError } = useAction(async () => {
     const newName = name.trim();
-    if (newName === "") return setError("Enter the account's name.");
-    if (selected.length === 0) return setError("Choose at least one owner.");
     const newNumber = number.trim() === "" ? null : number.trim();
     const ownersChanged =
       selected.length !== a.owners.length || a.owners.some((o) => !selected.includes(o.personId));
     const numberChanged = newNumber !== (a.accountNumber ?? null);
-    setBusy(true);
-    try {
-      const newAlt = altName.trim() === "" ? null : altName.trim();
-      if (newName !== a.displayName || newAlt !== (a.altName ?? null)) {
-        const body: SetAccountNameRequest = { displayName: newName, altName: newAlt };
-        await mutate(() => apiFetch<AccountDto>(`/api/accounts/${a.id}/name`, { method: "PUT", body }));
-      }
-      if (type !== (a.accountType ?? "")) {
-        const body: SetAccountTypeRequest = { accountType: type === "" ? null : (type as AccountType) };
-        await mutate(() => apiFetch<AccountDto>(`/api/accounts/${a.id}/type`, { method: "PUT", body }));
-      }
-      const newNotes = notes.trim() === "" ? null : notes.trim();
-      if (newNotes !== a.notes) {
-        const body: SetAccountNotesRequest = { notes: newNotes };
-        await mutate(() => apiFetch<AccountDto>(`/api/accounts/${a.id}/notes`, { method: "PUT", body }));
-      }
-      if (ownersChanged) {
-        // Keep role and share of owners that stay; new ones are plain owners.
-        const body: SetAccountOwnersRequest = {
-          owners: selected.map((personId) => {
-            const existing = a.owners.find((o) => o.personId === personId);
-            return { personId, role: existing?.role ?? "owner", share: existing?.share ?? null };
-          }),
-        };
-        await mutate(() => apiFetch<AccountDto>(`/api/accounts/${a.id}/owners`, { method: "PUT", body }));
-      }
-      if (numberChanged) {
-        const body: SetAccountNumberRequest = { accountNumber: newNumber };
-        await mutate(() => apiFetch<AccountDto>(`/api/accounts/${a.id}/account-number`, { method: "PUT", body }));
-      }
-      setError(null);
-      setEditing(false);
-      await reload();
-    } catch (e) {
-      setError(errorText(e));
-    } finally {
-      setBusy(false);
+    const newAlt = altName.trim() === "" ? null : altName.trim();
+    if (newName !== a.displayName || newAlt !== (a.altName ?? null)) {
+      const body: SetAccountNameRequest = { displayName: newName, altName: newAlt };
+      await mutate(() => apiFetch<AccountDto>(`/api/accounts/${a.id}/name`, { method: "PUT", body }));
     }
+    if (type !== (a.accountType ?? "")) {
+      const body: SetAccountTypeRequest = { accountType: type === "" ? null : (type as AccountType) };
+      await mutate(() => apiFetch<AccountDto>(`/api/accounts/${a.id}/type`, { method: "PUT", body }));
+    }
+    const newNotes = notes.trim() === "" ? null : notes.trim();
+    if (newNotes !== a.notes) {
+      const body: SetAccountNotesRequest = { notes: newNotes };
+      await mutate(() => apiFetch<AccountDto>(`/api/accounts/${a.id}/notes`, { method: "PUT", body }));
+    }
+    if (ownersChanged) {
+      // Keep role and share of owners that stay; new ones are plain owners.
+      const body: SetAccountOwnersRequest = {
+        owners: selected.map((personId) => {
+          const existing = a.owners.find((o) => o.personId === personId);
+          return { personId, role: existing?.role ?? "owner", share: existing?.share ?? null };
+        }),
+      };
+      await mutate(() => apiFetch<AccountDto>(`/api/accounts/${a.id}/owners`, { method: "PUT", body }));
+    }
+    if (numberChanged) {
+      const body: SetAccountNumberRequest = { accountNumber: newNumber };
+      await mutate(() => apiFetch<AccountDto>(`/api/accounts/${a.id}/account-number`, { method: "PUT", body }));
+    }
+    await reload();
+  });
+
+  const save = async () => {
+    if (name.trim() === "") return setError("Enter the account's name.");
+    if (selected.length === 0) return setError("Choose at least one owner.");
+    if (await run()) setEditing(false);
   };
 
   const cancel = () => { setEditing(false); setError(null); };
 
   return (
     <>
-      <tr>
-        {editing ? (
-          <td>
-            <label><span className="muted">Name</span><input type="text" dir="auto" value={name} onChange={(e) => setName(e.target.value)} /></label>
-            <label><span className="muted">Name in the other language (optional)</span><input type="text" dir="auto" value={altName} onChange={(e) => setAltName(e.target.value)} /></label>
-            <div className="row-actions">
-              <button type="button" onClick={() => void save()} disabled={busy}>Save</button>{" "}
-              <button type="button" onClick={cancel} disabled={busy}>Cancel</button>
-              <ErrorNote>{error}</ErrorNote>
-            </div>
-          </td>
-        ) : (
-          <Cell>
-            <button type="button" className="edit" onClick={startEdit}>Edit</button>
-            <AccountName account={a} />
+      <Tr>
+        <Td>
+          <RowAction onClick={startEdit}>Edit</RowAction>
+          <Stack gap={1}>
+            <Text weight="semibold"><AccountName account={a} /></Text>
             {docCount !== null && (
-              <div className="small">
-                {docCount === 0 ? <span className="muted">no documents</span> : <a href={hrefDocuments(a.id)}>{docCount} {docCount === 1 ? "document" : "documents"}</a>}
-              </div>
+              <Text as="div" size="sm">
+                {docCount === 0 ? (
+                  <Text tone="muted">no documents</Text>
+                ) : (
+                  <Link href={hrefDocuments(a.id)}>{docCount} {docCount === 1 ? "document" : "documents"}</Link>
+                )}
+              </Text>
             )}
-          </Cell>
-        )}
-        <Cell><Text>{a.institutionName}</Text></Cell>
-        <td>
-          {editing ? (
-            <select value={type} onChange={(e) => setType(e.target.value)}>
-              <option value="">Not set</option>
-              {ACCOUNT_TYPES.map((t) => <option key={t} value={t}>{ACCOUNT_TYPE_LABEL[t]}</option>)}
-            </select>
-          ) : a.accountType ? ACCOUNT_TYPE_LABEL[a.accountType] : <span className="muted">not set</span>}
-        </td>
-        <td>{editing ? <OwnerPicker selected={selected} onChange={setSelected} /> : <OwnersView account={a} />}</td>
-        <td>
-          {editing ? (
-            <>
-              <input type="text" dir="ltr" size={16} value={number} onChange={(e) => setNumber(e.target.value)} />
-              {a.accountNumber && <div className="muted">The old number is kept in the account's history.</div>}
-            </>
-          ) : a.accountNumber ? <Value>{a.accountNumber}</Value> : <span className="muted">none</span>}
-        </td>
-        <td>{a.country}</td>
-        <td>{a.nativeCurrency}</td>
-        <td className="balance-cell">
-          {balance === undefined ? null : balance === null ? (
-            <span className="muted">none yet</span>
-          ) : (
-            <>
-              <Value>{balance.formatted}</Value>
-              <div className="balance-date small muted">
-                <Value>{balance.instantDate}</Value>
-                {balance.status !== "verified" && " · unverified"}
-              </div>
-            </>
-          )}
-        </td>
-        <td>
-          {editing ? (
-            <textarea dir="auto" rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} />
-          ) : a.notes ? <div className="notes" dir="auto">{a.notes}</div> : <span className="muted">none</span>}
-        </td>
-      </tr>
+            {a.notes && <Text as="div" size="sm" tone="muted"><DataText block>{a.notes}</DataText></Text>}
+          </Stack>
+        </Td>
+        <Td><DataText>{a.institutionName}</DataText></Td>
+        <Td>{a.accountType ? ACCOUNT_TYPE_LABEL[a.accountType] : <Text tone="muted">not set</Text>}</Td>
+        <Td><OwnersView account={a} /></Td>
+        <Td>{a.accountNumber ? <Text tone="muted"><Value>{a.accountNumber}</Value></Text> : <Text tone="muted">none</Text>}</Td>
+        <Td align="end"><LatestValue balance={balance} /></Td>
+      </Tr>
+      {editing && (
+        <Tr>
+          <Td colSpan={6}>
+            <Panel title={`Edit ${a.displayName}`}>
+              <Form onSubmit={() => void save()}>
+                <FieldRow>
+                  <Field label="Name" grow><TextInput value={name} onChange={setName} /></Field>
+                  <Field label="Name in the other language (optional)" grow><TextInput value={altName} onChange={setAltName} /></Field>
+                </FieldRow>
+                <FieldRow>
+                  <Field label="Type">
+                    <Select value={type} onChange={setType} options={ACCOUNT_TYPE_OPTIONS} placeholder="Not set" />
+                  </Field>
+                  <Field
+                    label="Account number"
+                    hint={a.accountNumber ? "The old number is kept in the account's history." : undefined}
+                  >
+                    <TextInput dir="ltr" value={number} onChange={setNumber} />
+                  </Field>
+                </FieldRow>
+                <OwnerPicker selected={selected} onChange={setSelected} />
+                <Field label="Notes"><TextArea value={notes} onChange={setNotes} /></Field>
+                <Alert tone="danger">{error}</Alert>
+                <Inline>
+                  <Button type="submit" variant="primary" busy={busy}>Save</Button>
+                  <Button onClick={cancel} disabled={busy}>Cancel</Button>
+                </Inline>
+              </Form>
+            </Panel>
+          </Td>
+        </Tr>
+      )}
     </>
   );
 }
@@ -270,8 +351,13 @@ function InstitutionRow({ inst }: { inst: InstitutionDto }) {
   const { mutate } = useActor();
   const [editing, setEditing] = useState(false);
   const [kind, setKind] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+
+  const { run, busy, error, setError } = useAction(async () => {
+    if (kind !== (inst.kind ?? "")) {
+      await mutate(() => apiFetch<InstitutionDto>(`/api/institutions/${inst.id}/kind`, { method: "PUT", body: { kind: kind === "" ? null : kind } }));
+      await reload();
+    }
+  });
 
   const startEdit = () => {
     setKind(inst.kind ?? "");
@@ -279,45 +365,40 @@ function InstitutionRow({ inst }: { inst: InstitutionDto }) {
     setEditing(true);
   };
   const save = async () => {
-    setBusy(true);
-    try {
-      if (kind !== (inst.kind ?? "")) {
-        await mutate(() => apiFetch<InstitutionDto>(`/api/institutions/${inst.id}/kind`, { method: "PUT", body: { kind: kind === "" ? null : kind } }));
-        await reload();
-      }
-      setEditing(false);
-    } catch (e) {
-      setError(errorText(e));
-    } finally {
-      setBusy(false);
-    }
+    if (await run()) setEditing(false);
   };
+  const cancel = () => { setEditing(false); setError(null); };
 
   return (
-    <tr>
-      {editing ? (
-        <td>
+    <>
+      <Tr>
+        <Td>
+          <RowAction onClick={startEdit}>Edit</RowAction>
           <InstitutionName inst={inst} />
-          <div className="row-actions">
-            <button type="button" onClick={() => void save()} disabled={busy}>Save</button>{" "}
-            <button type="button" onClick={() => setEditing(false)} disabled={busy}>Cancel</button>
-            <ErrorNote>{error}</ErrorNote>
-          </div>
-        </td>
-      ) : (
-        <Cell><button type="button" className="edit" onClick={startEdit}>Edit</button><InstitutionName inst={inst} /></Cell>
+        </Td>
+        <Td>{inst.kind ? INSTITUTION_KIND_LABEL[inst.kind] : <Text tone="muted">not set</Text>}</Td>
+        <Td>{inst.country}</Td>
+        <Td>{langLabel(inst.language)}</Td>
+      </Tr>
+      {editing && (
+        <Tr>
+          <Td colSpan={4}>
+            <Panel title={`Edit ${inst.name}`}>
+              <Form onSubmit={() => void save()}>
+                <Field label="Kind">
+                  <Select value={kind} onChange={setKind} options={INSTITUTION_KIND_OPTIONS} placeholder="Not set" />
+                </Field>
+                <Alert tone="danger">{error}</Alert>
+                <Inline>
+                  <Button type="submit" variant="primary" busy={busy}>Save</Button>
+                  <Button onClick={cancel} disabled={busy}>Cancel</Button>
+                </Inline>
+              </Form>
+            </Panel>
+          </Td>
+        </Tr>
       )}
-      <td>
-        {editing ? (
-          <select value={kind} onChange={(e) => setKind(e.target.value)}>
-            <option value="">Not set</option>
-            {INSTITUTION_KINDS.map((k) => <option key={k} value={k}>{INSTITUTION_KIND_LABEL[k]}</option>)}
-          </select>
-        ) : inst.kind ? INSTITUTION_KIND_LABEL[inst.kind] : <span className="muted">not set</span>}
-      </td>
-      <td>{inst.country}</td>
-      <td>{langLabel(inst.language)}</td>
-    </tr>
+    </>
   );
 }
 
@@ -329,60 +410,51 @@ function AddInstitution() {
   const [country, setCountry] = useState("US");
   const [language, setLanguage] = useState<Language>("en");
   const [kind, setKind] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+
+  const { run, busy, error, setError } = useAction(async () => {
+    const body: CreateInstitutionRequest = { name: name.trim(), country, language, kind: kind as InstitutionKind, ...(altName.trim() ? { altName: altName.trim() } : {}) };
+    await mutate(() => apiFetch<InstitutionDto>("/api/institutions", { method: "POST", body }));
+    setName("");
+    setAltName("");
+    await reload();
+  });
 
   const submit = async () => {
     if (name.trim() === "") return setError("Enter the institution's name.");
     if (kind === "") return setError("Choose whether it is a financial institution or an employer.");
-    const body: CreateInstitutionRequest = { name: name.trim(), country, language, kind: kind as InstitutionKind, ...(altName.trim() ? { altName: altName.trim() } : {}) };
-    setBusy(true);
-    try {
-      await mutate(() => apiFetch<InstitutionDto>("/api/institutions", { method: "POST", body }));
-      setName("");
-      setAltName("");
-      setError(null);
-      await reload();
-    } catch (e) {
-      setError(errorText(e));
-    } finally {
-      setBusy(false);
-    }
+    await run();
   };
 
   return (
-    <form className="panel fields" onSubmit={(e) => { e.preventDefault(); void submit(); }}>
-      <h3>Add an institution</h3>
-      <div className="row">
-        <label className="grow"><span>Name, as printed on its documents</span><input type="text" dir="auto" value={name} onChange={(e) => setName(e.target.value)} /></label>
-        <label className="grow"><span>Name in the other language (optional)</span><input type="text" dir="auto" value={altName} onChange={(e) => setAltName(e.target.value)} /></label>
-      </div>
-      <div className="row">
-        <label>
-          <span>Kind</span>
-          <select value={kind} onChange={(e) => setKind(e.target.value)}>
-            <option value="">Choose…</option>
-            {INSTITUTION_KINDS.map((k) => <option key={k} value={k}>{INSTITUTION_KIND_LABEL[k]}</option>)}
-          </select>
-        </label>
-        <label>
-          <span>Country</span>
-          <select value={country} onChange={(e) => { setCountry(e.target.value); setLanguage(languageForCountry(e.target.value)); }}>
-            <option value="US">United States</option>
-            <option value="IL">Israel</option>
-          </select>
-        </label>
-        <label>
-          <span>Language of its documents</span>
-          <select value={language} onChange={(e) => setLanguage(e.target.value as Language)}>
-            <option value="en">English</option>
-            <option value="he">Hebrew</option>
-          </select>
-        </label>
-      </div>
-      <ErrorNote>{error}</ErrorNote>
-      <div><button type="submit" disabled={busy}>Add institution</button></div>
-    </form>
+    <Panel title="Add an institution">
+      <Form onSubmit={() => void submit()}>
+        <FieldRow>
+          <Field label="Name, as printed on its documents" grow><TextInput value={name} onChange={setName} /></Field>
+          <Field label="Name in the other language (optional)" grow><TextInput value={altName} onChange={setAltName} /></Field>
+        </FieldRow>
+        <FieldRow>
+          <Field label="Kind">
+            <Select value={kind} onChange={setKind} options={INSTITUTION_KIND_OPTIONS} placeholder="Choose…" />
+          </Field>
+          <Field label="Country">
+            <Select
+              value={country}
+              onChange={(v) => { setCountry(v); setLanguage(languageForCountry(v)); }}
+              options={[{ value: "US", label: "United States" }, { value: "IL", label: "Israel" }]}
+            />
+          </Field>
+          <Field label="Language of its documents">
+            <Select
+              value={language}
+              onChange={(v) => setLanguage(v as Language)}
+              options={[{ value: "en", label: "English" }, { value: "he", label: "Hebrew" }]}
+            />
+          </Field>
+        </FieldRow>
+        <Alert tone="danger">{error}</Alert>
+        <Inline><Button type="submit" variant="primary" busy={busy}>Add institution</Button></Inline>
+      </Form>
+    </Panel>
   );
 }
 
@@ -415,8 +487,6 @@ export function AddAccount({
   const [accountNumber, setAccountNumber] = useState("");
   const [accountType, setAccountType] = useState("");
   const [notes, setNotes] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
 
   const onInstitution = (v: string) => {
     setInstitutionId(v);
@@ -424,12 +494,7 @@ export function AddAccount({
     if (inst) setCurrency(currencyForCountry(inst.country));
   };
 
-  const submit = async () => {
-    if (institutionId === "") return setError("Choose the institution.");
-    if (displayName.trim() === "") return setError("Enter the account's name.");
-    if (accountType === "") return setError("Choose the account type.");
-    if (accountNumber.trim() === "") return setError("Enter the account number.");
-    if (ownerIds.length === 0) return setError("Choose at least one owner.");
+  const { run, busy, error, setError } = useAction(async () => {
     const body: CreateAccountRequest = {
       owners: ownerIds.map((personId) => ({ personId })),
       institutionId: Number(institutionId),
@@ -443,88 +508,76 @@ export function AddAccount({
       ...(notes.trim() ? { notes: notes.trim() } : {}),
       ...(accountNumber.trim() ? { accountNumber: accountNumber.trim() } : {}),
     };
-    setBusy(true);
-    try {
-      const created = await mutate(() => apiFetch<AccountDto>("/api/accounts", { method: "POST", body }));
-      setDisplayName("");
-      setAltName("");
-      setAccountNumber("");
-      setAccountType("");
-      setNotes("");
-      setOpenedOn("");
-      setClosedOn("");
-      setError(null);
-      await reload();
-      await onCreated?.(created);
-    } catch (e) {
-      setError(errorText(e));
-    } finally {
-      setBusy(false);
-    }
+    const created = await mutate(() => apiFetch<AccountDto>("/api/accounts", { method: "POST", body }));
+    setDisplayName("");
+    setAltName("");
+    setAccountNumber("");
+    setAccountType("");
+    setNotes("");
+    setOpenedOn("");
+    setClosedOn("");
+    await reload();
+    await onCreated?.(created);
+  });
+
+  const submit = async () => {
+    if (institutionId === "") return setError("Choose the institution.");
+    if (displayName.trim() === "") return setError("Enter the account's name.");
+    if (accountType === "") return setError("Choose the account type.");
+    if (accountNumber.trim() === "") return setError("Enter the account number.");
+    if (ownerIds.length === 0) return setError("Choose at least one owner.");
+    await run();
   };
 
   const sameNumber = accountNumber.trim() === "" ? undefined : accounts.find((a) => a.accountNumber === accountNumber.trim());
 
   return (
-    <form className="panel fields" onSubmit={(e) => { e.preventDefault(); void submit(); }}>
-      <h3>Add an account</h3>
-      <div className="row">
-        <label>
-          <span>Institution</span>
-          <select value={institutionId} onChange={(e) => onInstitution(e.target.value)}>
-            {sortedInstitutions.map((i) => <option key={i.id} value={i.id} dir="auto">{i.name}</option>)}
-          </select>
-        </label>
-        <label className="grow"><span>Account name</span><input type="text" dir="auto" value={displayName} onChange={(e) => setDisplayName(e.target.value)} /></label>
-        <label className="grow"><span>Name in the other language (optional)</span><input type="text" dir="auto" value={altName} onChange={(e) => setAltName(e.target.value)} /></label>
-      </div>
-      <div className="row">
-        <label>
-          <span>Type</span>
-          <select value={accountType} onChange={(e) => setAccountType(e.target.value)}>
-            <option value="">Choose...</option>
-            {ACCOUNT_TYPES.map((t) => <option key={t} value={t}>{ACCOUNT_TYPE_LABEL[t]}</option>)}
-          </select>
-        </label>
-        <label>
-          <span>Currency</span>
-          <select value={currency} onChange={(e) => setCurrency(e.target.value)}>
-            <option value="USD">USD ($)</option>
-            <option value="ILS">ILS (₪)</option>
-          </select>
-        </label>
-        <label><span>Opened (optional)</span><input type="date" value={openedOn} onChange={(e) => setOpenedOn(e.target.value)} /></label>
-        <label><span>Closed (optional)</span><input type="date" value={closedOn} onChange={(e) => setClosedOn(e.target.value)} /></label>
-        <label>
-          <span>How often it sends statements</span>
-          <select value={cadence} onChange={(e) => setCadence(e.target.value)}>
-            <option value="">Not sure</option>
-            <option value="monthly">Monthly</option>
-            <option value="quarterly">Quarterly</option>
-            <option value="semiannual">Twice a year</option>
-            <option value="annual">Once a year</option>
-            <option value="irregular">Irregular</option>
-          </select>
-        </label>
-        <label>
-          <span>Account number</span>
-          <input type="text" dir="ltr" size={16} value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)} />
-          {pickedText && pickedText !== accountNumber.trim() && (
-            <button type="button" onClick={() => setAccountNumber(pickedText)}>Use boxed text: {pickedText}</button>
-          )}
-        </label>
-      </div>
-      {sameNumber && <Warning>An account with this number already exists: {sameNumber.displayName} ({sameNumber.institutionName}).</Warning>}
-      <div>
-        <span className="label">Owner(s)</span>
+    <Panel title="Add an account">
+      <Form onSubmit={() => void submit()}>
+        <FieldRow>
+          <Field label="Institution">
+            <Select
+              value={institutionId}
+              onChange={onInstitution}
+              options={sortedInstitutions.map((i) => ({ value: String(i.id), label: i.name, dir: "auto" as const }))}
+            />
+          </Field>
+          <Field label="Account name" grow><TextInput value={displayName} onChange={setDisplayName} /></Field>
+          <Field label="Name in the other language (optional)" grow><TextInput value={altName} onChange={setAltName} /></Field>
+        </FieldRow>
+        <FieldRow>
+          <Field label="Type">
+            <Select value={accountType} onChange={setAccountType} options={ACCOUNT_TYPE_OPTIONS} placeholder="Choose..." />
+          </Field>
+          <Field label="Currency">
+            <Select
+              value={currency}
+              onChange={setCurrency}
+              options={[{ value: "USD", label: "USD ($)" }, { value: "ILS", label: "ILS (₪)" }]}
+            />
+          </Field>
+          <Field label="Opened (optional)"><DateInput value={openedOn} onChange={setOpenedOn} /></Field>
+          <Field label="Closed (optional)"><DateInput value={closedOn} onChange={setClosedOn} /></Field>
+          <Field label="How often it sends statements">
+            <Select value={cadence} onChange={setCadence} options={CADENCE_OPTIONS} placeholder="Not sure" />
+          </Field>
+          <Field
+            label="Account number"
+            hint={
+              pickedText && pickedText !== accountNumber.trim() ? (
+                <Button variant="link" onClick={() => setAccountNumber(pickedText)}>Use boxed text: {pickedText}</Button>
+              ) : undefined
+            }
+          >
+            <TextInput dir="ltr" value={accountNumber} onChange={setAccountNumber} />
+          </Field>
+        </FieldRow>
+        {sameNumber && <Alert tone="warning">An account with this number already exists: {sameNumber.displayName} ({sameNumber.institutionName}).</Alert>}
         <OwnerPicker selected={ownerIds} onChange={setOwnerIds} />
-      </div>
-      <label>
-        <span>Notes (optional)</span>
-        <textarea dir="auto" rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
-      </label>
-      <ErrorNote>{error}</ErrorNote>
-      <div><button type="submit" disabled={busy}>Add account</button></div>
-    </form>
+        <Field label="Notes (optional)"><TextArea rows={2} value={notes} onChange={setNotes} /></Field>
+        <Alert tone="danger">{error}</Alert>
+        <Inline><Button type="submit" variant="primary" busy={busy}>Add account</Button></Inline>
+      </Form>
+    </Panel>
   );
 }

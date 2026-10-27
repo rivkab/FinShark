@@ -1,0 +1,147 @@
+/*
+ * Design tokens: the only file in the web app that names a color.
+ *
+ * Two layers:
+ *   1. Palette (--palette-*): raw values. Never used outside this file.
+ *   2. Semantic roles (--color-*, --font-*, --space-*, ...): what components use.
+ *
+ * Dark mode later = one more block that remaps the semantic roles to other palette
+ * values (under [data-theme="dark"] and prefers-color-scheme). Components don't change.
+ * The --on-paper-* roles are drawn over the PDF page, which stays white in any theme,
+ * so they must not be remapped.
+ */
+
+:root {
+  /* ---- palette */
+  --palette-paper-50: #fdfbf6;
+  --palette-paper-100: #f7f4ec;
+  --palette-paper-200: #f0ebdf;
+  --palette-paper-300: #e2dccd;
+  --palette-paper-400: #d9d1bf;
+  --palette-paper-500: #c9bfa8;
+  --palette-stone-500: #8c8577;
+  --palette-stone-600: #6b6457;
+  --palette-stone-700: #4f4a40;
+  --palette-ink-700: #33415e;
+  --palette-ink-900: #1d2a44;
+  --palette-ink-950: #0e1626;
+  --palette-ochre-100: #f3e6cc;
+  --palette-ochre-200: #ebd9b8;
+  --palette-ochre-600: #c46a12;
+  --palette-ochre-700: #8a4a12;
+  --palette-ochre-800: #6a3e0f;
+  --palette-green-100: #e1eddf;
+  --palette-green-600: #3b8a4f;
+  --palette-green-700: #2f6b3f;
+  --palette-red-100: #f6e0dc;
+  --palette-red-600: #b03a30;
+  --palette-red-700: #9b2c2c;
+  --palette-violet-600: #6e4fc2;
+  --palette-blue-600: #1d5fd1;
+  --palette-white: #ffffff;
+  --palette-black: #000000;
+
+  color-scheme: light;
+
+  /* ---- surfaces */
+  --color-bg: var(--palette-paper-100);           /* page ground */
+  --color-bg-raised: var(--palette-paper-50);     /* panels, inputs, popovers */
+  --color-bg-hover: var(--palette-paper-200);     /* row hover, active list item */
+  --color-bg-backdrop: var(--palette-stone-500);  /* behind the PDF page */
+  --color-scrim: color-mix(in srgb, var(--palette-ink-950) 45%, transparent);
+
+  /* ---- text */
+  --color-text: var(--palette-ink-900);
+  --color-text-strong: var(--palette-ink-950);
+  --color-text-muted: var(--palette-stone-600);   /* labels, secondary info */
+  --color-text-subtle: var(--palette-stone-700);  /* inactive nav */
+  --color-text-inverse: var(--palette-paper-100);
+
+  /* ---- lines */
+  --color-border: var(--palette-paper-300);        /* table rules, panel edges */
+  --color-border-strong: var(--palette-paper-400); /* header bottom */
+  --color-border-control: var(--palette-paper-500);/* inputs, secondary buttons */
+  --color-border-ink: var(--palette-ink-900);      /* table head rule, active tab */
+
+  /* ---- accent (ink) */
+  --color-accent: var(--palette-ink-900);
+  --color-accent-hover: var(--palette-ink-700);
+  --color-accent-contrast: var(--palette-paper-100);
+  --color-focus: var(--palette-blue-600);
+
+  /* ---- tones: fg on bg, bg for badges/alerts, border for alerts */
+  --color-success: var(--palette-green-700);
+  --color-success-bg: var(--palette-green-100);
+  --color-warning: var(--palette-ochre-700);
+  --color-warning-strong: var(--palette-ochre-800);
+  --color-warning-bg: var(--palette-ochre-100);
+  --color-warning-border: var(--palette-ochre-200);
+  --color-danger: var(--palette-red-700);
+  --color-danger-bg: var(--palette-red-100);
+  --color-neutral-bg: var(--palette-paper-200);
+
+  /* ---- drawn on the PDF page (theme-independent) */
+  --on-paper-proposed: var(--palette-ochre-600);
+  --on-paper-verified: var(--palette-green-600);
+  --on-paper-rejected: var(--palette-red-600);
+  --on-paper-superseded: var(--palette-stone-500);
+  --on-paper-hint: var(--palette-violet-600);
+  --on-paper-selection: var(--palette-blue-600);
+  --on-paper-page: var(--palette-white);
+  --on-paper-shadow: color-mix(in srgb, var(--palette-black) 35%, transparent);
+
+  /* ---- type */
+  --font-display: "Newsreader", Georgia, serif;
+  --font-sans: "IBM Plex Sans", "IBM Plex Sans Hebrew", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", "IBM Plex Sans Hebrew", ui-monospace, monospace;
+
+  --text-xs: 11px;      /* eyebrows, table heads (uppercase) */
+  --text-sm: 13px;      /* secondary lines, hints */
+  --text-md: 15px;      /* body */
+  --text-lg: 17px;      /* emphasized values */
+  --text-xl: 22px;      /* subsection titles */
+  --text-2xl: 26px;     /* brand, section titles, stat values */
+  --text-title: 34px;   /* page titles on wide working pages */
+  --text-display: 48px; /* page titles */
+
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+
+  --leading-tight: 1.15;
+  --leading-normal: 1.5;
+  --tracking-eyebrow: 0.08em;
+
+  /* ---- space (4px scale) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 32px;
+  --space-8: 40px;
+  --space-9: 48px;
+  --space-10: 64px;
+
+  /* ---- shape and depth */
+  --radius-sm: 3px;
+  --radius-md: 4px;
+  --radius-lg: 6px;
+  --radius-full: 999px;
+  --shadow-popover: 0 6px 20px color-mix(in srgb, var(--palette-ink-950) 14%, transparent);
+  --shadow-modal: 0 16px 48px color-mix(in srgb, var(--palette-ink-950) 22%, transparent);
+
+  /* ---- layout */
+  --page-max: 1200px;
+  --page-gutter: var(--space-8);
+  --control-height: 36px;
+  --control-height-sm: 28px;
+}
+
+@media (max-width: 640px) {
+  :root {
+    --page-gutter: var(--space-4);
+    --text-display: 36px;
+  }
+}

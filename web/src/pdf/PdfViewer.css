@@ -1,0 +1,31 @@
+/* Marks drawn on the PDF page use the --on-paper-* tokens: the page stays white in any theme. */
+.pdf-viewer { display: flex; flex-direction: column; gap: var(--space-2); }
+.pdf-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); font-size: var(--text-sm); color: var(--color-text-muted); }
+.pdf-toolbar__group { display: inline-flex; align-items: center; gap: var(--space-2); }
+.pdf-toolbar__page {
+  width: 4rem;
+  height: var(--control-height-sm);
+  padding: 0 var(--space-2);
+  font: inherit;
+  color: var(--color-text);
+  background: var(--color-bg-raised);
+  border: 1px solid var(--color-border-control);
+  border-radius: var(--radius-sm);
+  text-align: left;
+}
+.pdf-toolbar__page:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 1px; }
+.pdf-scroll { overflow: auto; max-height: 82vh; background: var(--color-bg-backdrop); padding: var(--space-4); border-radius: var(--radius-lg); }
+.pdf-page { position: relative; margin: 0 auto; background: var(--on-paper-page); box-shadow: 0 2px 8px var(--on-paper-shadow); }
+.pdf-page canvas { display: block; }
+.pdf-overlay { position: absolute; inset: 0; cursor: crosshair; touch-action: none; user-select: none; }
+.pdf-text { position: absolute; color: transparent; white-space: pre; line-height: 1; pointer-events: none; overflow: hidden; }
+.pdf-text.shown { outline: 1px solid color-mix(in srgb, var(--on-paper-selection) 50%, transparent); color: color-mix(in srgb, var(--color-text-strong) 45%, transparent); }
+
+.pdf-highlight { position: absolute; border: 2px solid var(--on-paper-proposed); background: color-mix(in srgb, var(--on-paper-proposed) 18%, transparent); pointer-events: none; }
+.pdf-highlight.verified { border-color: var(--on-paper-verified); background: color-mix(in srgb, var(--on-paper-verified) 18%, transparent); }
+.pdf-highlight.rejected { border-color: var(--on-paper-rejected); background: color-mix(in srgb, var(--on-paper-rejected) 18%, transparent); border-style: dashed; }
+.pdf-highlight.superseded { border-color: var(--on-paper-superseded); background: color-mix(in srgb, var(--on-paper-superseded) 18%, transparent); border-style: dotted; }
+.pdf-highlight.hint { border-color: var(--on-paper-hint); background: color-mix(in srgb, var(--on-paper-hint) 18%, transparent); border-style: dashed; }
+.pdf-highlight.focused { border-width: 4px; box-shadow: 0 0 0 3px color-mix(in srgb, var(--on-paper-page) 80%, transparent); }
+.pdf-selection { position: absolute; border: 2px solid var(--on-paper-selection); background: color-mix(in srgb, var(--on-paper-selection) 18%, transparent); pointer-events: none; }
+.pdf-selection.drafting { border-style: dashed; }
