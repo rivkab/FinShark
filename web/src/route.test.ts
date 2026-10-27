@@ -24,7 +24,8 @@ describe("parseHash", () => {
     expect(parseHash("#/facts?removed=1")).toEqual({ page: "facts", filters: { removed: "1" } });
     expect(parseHash("#/facts/9")).toEqual({ page: "fact", id: 9 });
     expect(parseHash("#/accounts")).toEqual({ page: "accounts" });
-    expect(parseHash("#/people")).toEqual({ page: "people" });
+    // There is no People page (DESIGN D16); an old bookmark lands on the default page.
+    expect(parseHash("#/people")).toEqual({ page: "accounts" });
     expect(parseHash("#/demo")).toEqual({ page: "demo" });
     expect(parseHash("#/design")).toEqual({ page: "design" });
   });

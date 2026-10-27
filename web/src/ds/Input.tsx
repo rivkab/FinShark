@@ -13,11 +13,13 @@ export interface TextInputProps {
   size?: "md" | "sm" | undefined;
   maxLength?: number | undefined;
   autoFocus?: boolean | undefined;
+  /** Called on Enter instead of submitting an enclosing form. For a mini-form nested inside another form. */
+  onEnter?: (() => void) | undefined;
   "aria-label"?: string | undefined;
   id?: string | undefined;
 }
 
-export function TextInput({ value, onChange, dir = "auto", type = "text", placeholder, size = "md", maxLength, autoFocus, "aria-label": ariaLabel, id }: TextInputProps) {
+export function TextInput({ value, onChange, dir = "auto", type = "text", placeholder, size = "md", maxLength, autoFocus, onEnter, "aria-label": ariaLabel, id }: TextInputProps) {
   return (
     <input
       id={id}
@@ -30,6 +32,12 @@ export function TextInput({ value, onChange, dir = "auto", type = "text", placeh
       autoFocus={autoFocus}
       aria-label={ariaLabel}
       onChange={(e) => onChange(e.target.value)}
+      onKeyDown={onEnter ? (e) => {
+        if (e.key === "Enter" && !e.nativeEvent.isComposing) {
+          e.preventDefault();
+          onEnter();
+        }
+      } : undefined}
     />
   );
 }

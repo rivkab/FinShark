@@ -16,6 +16,7 @@ import type {
 } from "@finshark/shared";
 import { apiFetch } from "./api.ts";
 import { hrefDocuments, hrefFacts } from "./route.ts";
+import { AddOwner } from "./AddOwner.tsx";
 import { useActor, useRefData } from "./context.tsx";
 import { sortInstitutions } from "./institutionSort.ts";
 import { sortAccounts, type AccountSortKey, type SortDir } from "./accountSort.ts";
@@ -168,21 +169,27 @@ export function AccountsPage() {
   );
 }
 
-/** Checkboxes for choosing people; at least one must stay checked. */
+/** Checkboxes for choosing owners, with "Add owner..." to add or promote one in place. */
 function OwnerPicker({ selected, onChange }: { selected: number[]; onChange: (ids: number[]) => void }) {
   const owners = useRefData().people.filter((p) => p.ownsAccounts);
-  if (owners.length === 0) return <Text tone="muted">Add a person who owns accounts first (People page); every account needs an owner.</Text>;
   return (
-    <FieldGroup label="Owner(s)">
-      {owners.map((p) => (
-        <Checkbox
-          key={p.id}
-          checked={selected.includes(p.id)}
-          onChange={(checked) => onChange(checked ? [...selected, p.id] : selected.filter((x) => x !== p.id))}
-          label={<DataText>{p.displayName}</DataText>}
-        />
-      ))}
-    </FieldGroup>
+    <Stack gap={2}>
+      {owners.length > 0 ? (
+        <FieldGroup label="Owner(s)">
+          {owners.map((p) => (
+            <Checkbox
+              key={p.id}
+              checked={selected.includes(p.id)}
+              onChange={(checked) => onChange(checked ? [...selected, p.id] : selected.filter((x) => x !== p.id))}
+              label={<DataText>{p.displayName}</DataText>}
+            />
+          ))}
+        </FieldGroup>
+      ) : (
+        <Text tone="muted">Every account needs an owner. Add one to continue.</Text>
+      )}
+      <AddOwner onOwner={(p) => onChange(selected.includes(p.id) ? selected : [...selected, p.id])} />
+    </Stack>
   );
 }
 

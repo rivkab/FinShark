@@ -6,13 +6,14 @@
 //    display string ("$83,421.17"). Never parse these with Number.
 //  * Dates are ISO "YYYY-MM-DD" strings, timestamps ISO-8601 UTC.
 //  * Errors are `ApiErrorBody` with HTTP 400 (bad input), 404 (not found), 409 (state/conflict).
-//  * Every mutation except POST /api/people and POST /api/session/person needs a chosen
-//    person (409 `choose_person` otherwise) and the CSRF header.
+//  * Every mutation except POST /api/people, PUT /api/people/:id/roles, PUT /api/people/:id/name
+//    and POST /api/session/person needs a chosen person (409 `choose_person` otherwise) and the CSRF header.
 //
 // Endpoints (all under the security hooks; JSON unless noted)
 //   GET  /api/people                         -> { people: PersonDto[] }
 //   POST /api/people          CreatePersonRequest        -> 201 PersonDto
 //   PUT  /api/people/:id/roles               SetPersonRolesRequest -> PersonDto
+//   PUT  /api/people/:id/name                RenamePersonRequest -> PersonDto
 //   GET  /api/institutions                   -> { institutions: InstitutionDto[] }
 //   POST /api/institutions    CreateInstitutionRequest   -> 201 InstitutionDto
 //   PUT  /api/institutions/:id/kind          SetInstitutionKindRequest -> InstitutionDto
@@ -90,6 +91,10 @@ export interface CreatePersonRequest {
   /** Default true. At least one of the two must be true. */
   ownsAccounts?: boolean;
   usesApp?: boolean;
+}
+export interface RenamePersonRequest {
+  /** Trimmed; unique among people, ignoring case. */
+  displayName: string;
 }
 export interface SetPersonRolesRequest {
   ownsAccounts: boolean;

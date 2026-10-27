@@ -175,20 +175,36 @@ export function registerReferenceRoutes(app: FastifyInstance, ctx: ApiContext): 
     people: (db.prepare("SELECT * FROM people ORDER BY id").all() as Row[]).map(personDto),
   }));
 
-  app.post("/api/people", async (req, reply) => {
-    const name = reqStr(jsonBody(req), "displayName").trim();
+  // Names are how people are told apart in history and attributions, so they must be unique
+  // (case-insensitive). `exceptId` lets a person keep their own name when renaming.
+  const cleanName = (raw: string, exceptId?: number): string => {
+    const name = raw.trim();
+    if (name === "") throw badRequest("displayName must not be blank.");
     if (name.length > 200) throw badRequest("displayName is too long.");
-    // Names are how people are told apart in history and attributions, so they must be unique.
-    const taken = (db.prepare("SELECT display_name FROM people").all() as Row[]).some(
-      (r) => String(r["display_name"]).toLocaleLowerCase() === name.toLocaleLowerCase(),
+    const taken = (db.prepare("SELECT id, display_name FROM people").all() as Row[]).some(
+      (r) => Number(r["id"]) !== exceptId && String(r["display_name"]).toLocaleLowerCase() === name.toLocaleLowerCase(),
     );
     if (taken) throw new HttpError(409, "duplicate_name", `There is already someone called ${name}.`);
+    return name;
+  };
+
+  app.post("/api/people", async (req, reply) => {
+    const name = cleanName(reqStr(jsonBody(req), "displayName"));
     const o = jsonBody(req);
     const ownsAccounts = boolField(o, "ownsAccounts") ?? true;
     const usesApp = boolField(o, "usesApp") ?? true;
     if (!ownsAccounts && !usesApp) throw badRequest("A person must own accounts, use FinShark, or both.");
     const id = insertPerson(db, ctx.now, { displayName: name, ownsAccounts, usesApp });
     return reply.code(201).send(personDto(db.prepare("SELECT * FROM people WHERE id = ?").get(id) as Row));
+  });
+
+  // History resolves names through people.id (fact_events.actor, verified_by), so a rename shows everywhere.
+  app.put("/api/people/:id/name", async (req) => {
+    const id = idParam(req);
+    if (!db.prepare("SELECT 1 FROM people WHERE id = ?").get(id)) throw notFound("Person");
+    const name = cleanName(reqStr(jsonBody(req), "displayName"), id);
+    db.prepare("UPDATE people SET display_name = ? WHERE id = ?").run(name, id);
+    return personDto(db.prepare("SELECT * FROM people WHERE id = ?").get(id) as Row);
   });
 
   app.put("/api/people/:id/roles", async (req) => {
