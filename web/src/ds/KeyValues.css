@@ -1,0 +1,16 @@
+.ds-key-values {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 6px 16px;
+}
+
+.ds-key-values dt {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.ds-key-values dd {
+  margin: 0;
+  min-width: 0;
+  text-align: left;
+}

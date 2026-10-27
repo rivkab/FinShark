@@ -1,0 +1,151 @@
+.ds-page {
+  display: block;
+  max-width: var(--page-max);
+  margin-inline: auto;
+  padding: var(--space-8) var(--page-gutter) var(--space-10);
+}
+
+.ds-page--wide {
+  max-width: none;
+}
+
+/* Wide pages are working screens (a document beside its numbers): a smaller title leaves room for the work. */
+.ds-page--wide .ds-page__titles .ds-heading--display {
+  font-size: var(--text-title);
+}
+
+.ds-page--narrow {
+  max-width: calc(32rem + 2 * var(--page-gutter));
+  padding-top: var(--space-10);
+}
+
+.ds-page__header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-bottom: var(--space-7);
+}
+
+.ds-page__back {
+  font-size: var(--text-sm);
+}
+
+.ds-page__heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.ds-page__titles {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.ds-page__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.ds-page__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-7);
+}
+
+/* Sections sit in a stack (the page body, usually); the extra margin sets them apart from plain blocks. */
+.ds-section:not(:first-child) {
+  margin-top: var(--space-5);
+}
+
+.ds-section__heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.ds-panel {
+  padding: var(--space-5);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-raised);
+}
+
+.ds-panel__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.ds-panel__heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.ds-disclosure__summary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  cursor: pointer;
+  list-style: none;
+}
+
+.ds-disclosure__summary::-webkit-details-marker {
+  display: none;
+}
+
+.ds-disclosure__chevron {
+  display: flex;
+  color: var(--color-text-muted);
+}
+
+.ds-disclosure[open] .ds-disclosure__chevron {
+  transform: rotate(90deg);
+}
+
+.ds-disclosure__body {
+  margin-top: var(--space-4);
+}
+
+.ds-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 27rem;
+  gap: var(--space-6);
+  align-items: start;
+}
+
+.ds-split__main,
+.ds-split__aside {
+  position: sticky;
+  top: var(--space-2);
+}
+
+.ds-split__aside {
+  max-height: calc(100vh - 2 * var(--space-2));
+  overflow-y: auto;
+  padding-inline-end: var(--space-2);
+}
+
+@media (max-width: 1000px) {
+  .ds-split {
+    grid-template-columns: 1fr;
+  }
+
+  .ds-split__main,
+  .ds-split__aside {
+    position: static;
+    max-height: none;
+  }
+}

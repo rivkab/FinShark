@@ -4,6 +4,8 @@ import type { PDFDocumentProxy, RenderTask } from "pdfjs-dist";
 import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import { normalizeRect, pdfRectToViewport, viewportToPdfRect, type PdfRect, type ViewportRect, type ViewportTransform } from "@finshark/shared";
 import { textInBox, toTextBoxes, type PdfJsTextItemLike, type TextBox } from "@finshark/shared";
+import { Alert, Button, Checkbox } from "../ds/index.ts";
+import "./PdfViewer.css";
 
 // Worker and runtime assets are bundled locally; nothing is fetched from a CDN.
 pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
@@ -195,34 +197,34 @@ export function PdfViewer({ source, highlights = [], onSelect, initialPage = 1, 
   return (
     <div className="pdf-viewer">
       <div className="pdf-toolbar">
-        <button onClick={() => goto(pageNo - 1)} disabled={pageNo <= 1}>
+        <Button size="sm" onClick={() => goto(pageNo - 1)} disabled={pageNo <= 1}>
           Prev
-        </button>
-        <span>
-          Page{" "}
+        </Button>
+        <span className="pdf-toolbar__group">
+          Page
           <input
+            className="pdf-toolbar__page"
             type="number"
             min={1}
             max={numPages || 1}
             value={pageNo}
             onChange={(e) => goto(Number(e.target.value) || 1)}
             aria-label="Page number"
-          />{" "}
+          />
           of {numPages || "-"}
         </span>
-        <button onClick={() => goto(pageNo + 1)} disabled={pageNo >= numPages}>
+        <Button size="sm" onClick={() => goto(pageNo + 1)} disabled={pageNo >= numPages}>
           Next
-        </button>
-        <span className="sep" />
-        <button onClick={() => setScale((s) => Math.max(0.25, +(s / 1.2).toFixed(3)))}>Zoom out</button>
-        <span>{Math.round(scale * 100)}%</span>
-        <button onClick={() => setScale((s) => Math.min(6, +(s * 1.2).toFixed(3)))}>Zoom in</button>
-        <button onClick={() => setTurns((t) => (t + 1) % 4)}>Rotate</button>
-        <label>
-          <input type="checkbox" checked={showText} onChange={(e) => setShowText(e.target.checked)} /> Show text boxes
-        </label>
+        </Button>
+        <span className="pdf-toolbar__group">
+          <Button size="sm" variant="ghost" onClick={() => setScale((s) => Math.max(0.25, +(s / 1.2).toFixed(3)))}>Zoom out</Button>
+          {Math.round(scale * 100)}%
+          <Button size="sm" variant="ghost" onClick={() => setScale((s) => Math.min(6, +(s * 1.2).toFixed(3)))}>Zoom in</Button>
+          <Button size="sm" variant="ghost" onClick={() => setTurns((t) => (t + 1) % 4)}>Rotate</Button>
+        </span>
+        <Checkbox checked={showText} onChange={setShowText} label="Show text boxes" />
       </div>
-      {error && <p className="error">Could not display this PDF: {error}</p>}
+      <Alert tone="danger">{error && `Could not display this PDF: ${error}`}</Alert>
       <div className="pdf-scroll" ref={scrollRef}>
         <div className="pdf-page" ref={pageRef} style={view ? { width: view.width, height: view.height } : undefined}>
           <canvas ref={canvasRef} />

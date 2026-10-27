@@ -1021,3 +1021,17 @@ person who does not use the app, removing `owns_accounts` from a current owner o
 (change the owners first), and removing `uses_app` from the person using the app right now.
 Existing people got both flags (migration 007). Names in history and owner lists still resolve
 for everyone; only the pickers are filtered.
+
+### D14. A design system; everything left-aligned, Hebrew included (2026-10-27)
+
+The web app has one look ("Ledger": paper ground, ink text, Newsreader titles, IBM Plex
+Sans/Mono; fonts bundled, never fetched) built from a small design system in
+`web/src/ds/` (see its README). Pages compose primitives and never style anything
+themselves; only `ds/tokens.css` names colors, so a dark mode is one remapping of the
+semantic tokens. Both rules are checked by a test.
+
+This amends D3's rendering rule. Cells no longer set `dir="auto"`, because that
+right-aligns a Hebrew cell and a mixed column becomes ragged. Every cell, field and line
+is left-aligned; Hebrew data is isolated inline (`<bdi dir="auto">`), so it still reads
+right-to-left and numbers inside it are still not reordered. Text inputs keep
+`dir="auto"` for typing, with left alignment.

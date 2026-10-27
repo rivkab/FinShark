@@ -1,11 +1,11 @@
-import { useRef, useState, type DragEvent } from "react";
+import { useState } from "react";
 import type { DocumentDto } from "@finshark/shared";
 import { apiFetch, errorText, uploadPdf } from "./api.ts";
 import { useActor, useRefData } from "./context.tsx";
 import { hrefDocument, hrefDocuments } from "./route.ts";
 import { describeUpload, periodLabel, type UploadOutcome } from "./suggest.ts";
-import { ErrorNote, useLoad, AccountName } from "./ui.tsx";
-import { Cell, Text, Value } from "./Value.tsx";
+import { useLoad, AccountName, DocStatusBadge } from "./ui.tsx";
+import { Alert, DataText, Dropzone, Empty, Field, FieldRow, Link, List, ListItem, Page, Select, Stack, StatusMark, Table, TableBody, TableHead, Td, Text, Th, Tr, Value } from "./ds/index.ts";
 import { pickLabel } from "./labels.ts";
 
 interface FileResult {
@@ -22,8 +22,6 @@ export function DocumentsPage({ accountId }: { accountId: number | null }) {
   const shown = (docs.data ?? []).filter((d) => accountId === null || d.accountIds.includes(accountId));
   const account = accountId === null ? undefined : accounts.find((a) => a.id === accountId);
   const [results, setResults] = useState<FileResult[]>([]);
-  const [dragging, setDragging] = useState(false);
-  const input = useRef<HTMLInputElement>(null);
 
   const upload = async (files: File[]) => {
     if (files.length === 0) return;
@@ -40,79 +38,56 @@ export function DocumentsPage({ accountId }: { accountId: number | null }) {
     await docs.reload();
   };
 
-  const onDrop = (e: DragEvent) => {
-    e.preventDefault();
-    setDragging(false);
-    void upload([...e.dataTransfer.files]);
-  };
-
   return (
-    <section>
-      <h1>Documents</h1>
-      <div
-        className={`dropzone${dragging ? " over" : ""}`}
-        onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
-        onDragLeave={() => setDragging(false)}
-        onDrop={onDrop}
-      >
-        <p>Drag PDF files here, or</p>
-        <button onClick={() => input.current?.click()}>Choose PDF files...</button>
-        <input
-          ref={input}
-          type="file"
-          accept="application/pdf,.pdf"
-          multiple
-          hidden
-          onChange={(e) => {
-            void upload([...(e.target.files ?? [])]);
-            e.target.value = "";
-          }}
-        />
-      </div>
+    <Page eyebrow={account ? <>Archive · <AccountName account={account} /></> : "Archive"} title="Documents">
+      <Dropzone onFiles={(files) => void upload(files)} accept="application/pdf,.pdf" multiple prompt="Drag PDF files here, or" buttonLabel="Choose PDF files…" />
 
       {results.length > 0 && (
-        <ul className="results">
+        <List>
           {results.map((r, i) => (
-            <li key={i} className={r.state}>
-              <Text>{r.name}</Text>: <UploadStatus r={r} />
-            </li>
+            <ListItem key={i}>
+              <DataText>{r.name}</DataText>: <UploadStatus r={r} />
+            </ListItem>
           ))}
-        </ul>
+        </List>
       )}
 
-      <h2>{account ? <>Documents for <AccountName account={account} /></> : accountId ? "Documents for an unknown account" : "All documents"}</h2>
-      <div className="filters">
-        <label>
-          <span>Account</span>
-          <select value={accountId ?? ""} onChange={(e) => { window.location.hash = hrefDocuments(Number(e.target.value) || null).slice(1); }}>
-            <option value="">Any</option>
-            {accounts.map((a) => <option key={a.id} value={a.id} dir="auto">{a.displayName}</option>)}
-          </select>
-        </label>
-        {accountId !== null && <a href={hrefDocuments()}>Show all documents</a>}
-      </div>
-      <ErrorNote>{docs.error}</ErrorNote>
-      {docs.data && docs.data.length === 0 && <p>No documents yet. Add a PDF above to get started.</p>}
-      {docs.data && docs.data.length > 0 && shown.length === 0 && <p>No documents are linked to this account yet.</p>}
-      {shown.length > 0 && <DocumentTable docs={shown} />}
-    </section>
+      <Stack gap={3}>
+        <FieldRow align="end">
+          <Field label="Account">
+            <Select
+              value={accountId === null ? "" : String(accountId)}
+              onChange={(v) => { window.location.hash = hrefDocuments(Number(v) || null).slice(1); }}
+              placeholder="Any"
+              options={accounts.map((a) => ({ value: String(a.id), label: a.displayName, dir: "auto" }))}
+            />
+          </Field>
+          {accountId !== null && <Link href={hrefDocuments()}>Show all documents</Link>}
+        </FieldRow>
+        {accountId !== null && !account && <Text tone="muted">Documents for an unknown account</Text>}
+        <Alert tone="danger">{docs.error}</Alert>
+        {docs.data && docs.data.length === 0 && <Empty>No documents yet. Add a PDF above to get started.</Empty>}
+        {docs.data && docs.data.length > 0 && shown.length === 0 && <Empty>No documents are linked to this account yet.</Empty>}
+        {shown.length > 0 && <DocumentTable docs={shown} />}
+      </Stack>
+    </Page>
   );
 }
 
 function UploadStatus({ r }: { r: FileResult }) {
-  if (r.state === "uploading") return <>uploading...</>;
-  if (r.state === "error") return <span className="error">failed. {r.error}</span>;
+  if (r.state === "uploading") return <StatusMark tone="muted" icon="clock">uploading…</StatusMark>;
+  if (r.state === "error") return <StatusMark tone="danger" icon="cross">failed. {r.error}</StatusMark>;
   const o = r.outcome!;
   return (
     <>
-      <span className={o.kind === "imported" ? "ok" : "warn"}>{o.text}</span>
+      {o.kind === "imported" ? <StatusMark tone="success" icon="check">{o.text}</StatusMark> : <StatusMark tone="warning" icon="dash">{o.text}</StatusMark>}
       {o.related.map((id) => (
-        <a key={id} href={hrefDocument(id)}> #{id}</a>
+        <Text key={id}> <Link href={hrefDocument(id)}>#{id}</Link></Text>
       ))}
       {o.kind !== "duplicate" && o.documentId !== null && (
         <>
           {" "}
-          <a href={hrefDocument(o.documentId)}>Open it</a>
+          <Link href={hrefDocument(o.documentId)}>Open it</Link>
         </>
       )}
     </>
@@ -122,32 +97,42 @@ function UploadStatus({ r }: { r: FileResult }) {
 function DocumentTable({ docs }: { docs: DocumentDto[] }) {
   const { institutions, accounts, docTypes } = useRefData();
   return (
-    <table className="data">
-      <thead>
-        <tr><th>File</th><th>Institution</th><th>Type</th><th>Period</th><th>Accounts</th><th className="num">Numbers</th><th>Status</th></tr>
-      </thead>
-      <tbody>
+    <Table aria-label="Documents">
+      <TableHead>
+        <Tr>
+          <Th>File</Th>
+          <Th>Institution</Th>
+          <Th>Type</Th>
+          <Th>Period</Th>
+          <Th>Accounts</Th>
+          <Th align="end">Numbers</Th>
+          <Th>Status</Th>
+        </Tr>
+      </TableHead>
+      <TableBody>
         {docs.map((d) => {
           const inst = institutions.find((i) => i.id === d.institutionId);
           const type = docTypes.find((t) => t.id === d.docType);
           return (
-            <tr key={d.id}>
-              <Cell><a href={hrefDocument(d.id)}>{d.originalFilename}</a></Cell>
-              <Cell>{inst ? <Text>{inst.name}</Text> : <span className="muted">not set</span>}</Cell>
-              <td>{type ? pickLabel(type.labelEn, type.labelHe, d.language) : <span className="muted">not set</span>}</td>
-              <td><Value>{periodLabel(d)}</Value></td>
-              <Cell>
-                {d.accountIds.map((id) => {
-                  const a = accounts.find((x) => x.id === id);
-                  return a ? <div key={id}><AccountName account={a} /></div> : null;
-                })}
-              </Cell>
-              <td className="num">{d.factCount}</td>
-              <td><span className={`badge doc-${d.status}`}>{d.status === "inbox" ? "needs review" : d.status}</span></td>
-            </tr>
+            <Tr key={d.id}>
+              <Td><Link href={hrefDocument(d.id)}><DataText>{d.originalFilename}</DataText></Link></Td>
+              <Td>{inst ? <DataText>{inst.name}</DataText> : <Text tone="muted">not set</Text>}</Td>
+              <Td>{type ? <DataText>{pickLabel(type.labelEn, type.labelHe, d.language)}</DataText> : <Text tone="muted">not set</Text>}</Td>
+              <Td><Value>{periodLabel(d)}</Value></Td>
+              <Td>
+                <Stack gap={1}>
+                  {d.accountIds.map((id) => {
+                    const a = accounts.find((x) => x.id === id);
+                    return a ? <AccountName key={id} account={a} /> : null;
+                  })}
+                </Stack>
+              </Td>
+              <Td align="end"><Value>{d.factCount}</Value></Td>
+              <Td><DocStatusBadge status={d.status} /></Td>
+            </Tr>
           );
         })}
-      </tbody>
-    </table>
+      </TableBody>
+    </Table>
   );
 }

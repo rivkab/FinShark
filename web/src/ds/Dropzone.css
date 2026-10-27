@@ -1,0 +1,17 @@
+.ds-dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-6);
+  border: 2px dashed var(--color-border-control);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-raised);
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+.ds-dropzone--over {
+  border-color: var(--color-accent);
+  background: var(--color-bg-hover);
+}

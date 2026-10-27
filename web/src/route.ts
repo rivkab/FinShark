@@ -7,7 +7,8 @@ export type Route =
   | { page: "fact"; id: number }
   | { page: "accounts" }
   | { page: "people" }
-  | { page: "demo" };
+  | { page: "demo" }
+  | { page: "design" };
 
 const ID = /^\d{1,15}$/;
 
@@ -48,6 +49,8 @@ export function parseHash(hash: string): Route {
       return { page: "people" };
     case "demo":
       return { page: "demo" };
+    case "design":
+      return { page: "design" };
     default:
       return { page: "accounts" };
   }

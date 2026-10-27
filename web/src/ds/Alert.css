@@ -1,0 +1,25 @@
+.ds-alert {
+  font-size: var(--text-md);
+}
+
+.ds-alert--danger,
+.ds-alert--warning {
+  padding: 8px 12px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+}
+
+.ds-alert--danger {
+  background: var(--color-danger-bg);
+  border-color: var(--color-danger-bg);
+  color: var(--color-danger);
+}
+
+.ds-alert--warning {
+  background: var(--color-warning-bg);
+  border-color: var(--color-warning-border);
+  color: var(--color-warning-strong);
+}
+
+.ds-alert--success { color: var(--color-success); }
+.ds-alert--info { color: var(--color-text-muted); }

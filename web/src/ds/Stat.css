@@ -1,0 +1,33 @@
+.ds-stat {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  color: var(--color-text);
+  text-decoration: none;
+}
+
+.ds-stat__label,
+.ds-stat__note {
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.ds-stat__value {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--text-2xl);
+  font-weight: var(--weight-medium);
+  line-height: var(--leading-tight);
+}
+
+.ds-stat--warning .ds-stat__value {
+  color: var(--color-warning);
+}
+
+.ds-stat--link {
+  cursor: pointer;
+}
+
+.ds-stat--link:hover .ds-stat__value {
+  text-decoration: underline;
+}

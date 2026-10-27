@@ -2,6 +2,7 @@ import type { AccountDto, ConceptDto } from "@finshark/shared";
 import type { PeriodSource } from "./dates.ts";
 import { applyConceptChange, isMoney, type FactFormState } from "./factForm.ts";
 import { useRefData } from "./context.tsx";
+import { DateInput, Field, FieldRow, Select, Stack, Text, TextInput } from "./ds/index.ts";
 import { AccountSelect, ConceptPicker } from "./ui.tsx";
 
 /** The fields of "Add a number" / "Correct". Controlled; the parent owns the buttons and the submit. */
@@ -33,67 +34,62 @@ export function FactFormFields({
   };
 
   return (
-    <div className="fields">
-      <label>
-        <span>Kind of number</span>
+    <Stack gap={3}>
+      <Field label="Kind of number">
         <ConceptPicker concepts={concepts} value={form.conceptId} onChange={onConcept} />
-      </label>
+      </Field>
       {concept?.subject !== "person" && (
-        <label>
-          <span>Account</span>
+        <Field label="Account">
           <AccountSelect accounts={accounts} institutionId={institutionId} value={form.accountId} onChange={onAccount} noneLabel="Choose an account..." />
-        </label>
+        </Field>
       )}
       {concept?.subject === "person" && (
-        <label>
-          <span>Person</span>
-          <select value={form.personId} onChange={(e) => set({ personId: e.target.value })}>
-            <option value="">Choose a person...</option>
-            {people.filter((p) => p.ownsAccounts).map((p) => (
-              <option key={p.id} value={p.id}>{p.displayName}</option>
-            ))}
-          </select>
-        </label>
+        <Field label="Person">
+          <Select
+            value={form.personId}
+            onChange={(v) => set({ personId: v })}
+            placeholder="Choose a person..."
+            options={people.filter((p) => p.ownsAccounts).map((p) => ({ value: String(p.id), label: p.displayName, dir: "auto" }))}
+          />
+        </Field>
       )}
-      <div className="row">
-        <label className="grow">
-          <span>Value</span>
-          <input type="text" dir="auto" value={form.value} onChange={(e) => set({ value: e.target.value })} placeholder="as printed, e.g. $83,421.17" />
-        </label>
+      <FieldRow>
+        <Field label="Value" grow>
+          <TextInput value={form.value} onChange={(v) => set({ value: v })} placeholder="as printed, e.g. $83,421.17" />
+        </Field>
         {isMoney(concept) && (
-          <label>
-            <span>Currency</span>
-            <select value={form.currency} onChange={(e) => set({ currency: e.target.value })}>
-              <option value="">Choose...</option>
-              <option value="USD">USD ($)</option>
-              <option value="ILS">ILS (₪)</option>
-            </select>
-          </label>
+          <Field label="Currency">
+            <Select
+              value={form.currency}
+              onChange={(v) => set({ currency: v })}
+              placeholder="Choose..."
+              options={[
+                { value: "USD", label: "USD ($)" },
+                { value: "ILS", label: "ILS (₪)" },
+              ]}
+            />
+          </Field>
         )}
-      </div>
-      {valueHint && <p className="muted small">{valueHint}</p>}
+      </FieldRow>
+      {valueHint && <Text as="p" tone="muted" size="sm">{valueHint}</Text>}
       {concept?.periodType === "instant" && (
-        <label>
-          <span>As of date</span>
-          <input type="date" value={form.instantDate} onChange={(e) => set({ instantDate: e.target.value })} />
-        </label>
+        <Field label="As of date">
+          <DateInput value={form.instantDate} onChange={(v) => set({ instantDate: v })} />
+        </Field>
       )}
       {concept?.periodType === "duration" && (
-        <div className="row">
-          <label>
-            <span>Period start</span>
-            <input type="date" value={form.periodStart} onChange={(e) => set({ periodStart: e.target.value })} />
-          </label>
-          <label>
-            <span>Period end</span>
-            <input type="date" value={form.periodEnd} onChange={(e) => set({ periodEnd: e.target.value })} />
-          </label>
-        </div>
+        <FieldRow>
+          <Field label="Period start">
+            <DateInput value={form.periodStart} onChange={(v) => set({ periodStart: v })} />
+          </Field>
+          <Field label="Period end">
+            <DateInput value={form.periodEnd} onChange={(v) => set({ periodEnd: v })} />
+          </Field>
+        </FieldRow>
       )}
-      <label>
-        <span>Note (optional)</span>
-        <input type="text" dir="auto" value={form.note} onChange={(e) => set({ note: e.target.value })} />
-      </label>
-    </div>
+      <Field label="Note (optional)">
+        <TextInput value={form.note} onChange={(v) => set({ note: v })} />
+      </Field>
+    </Stack>
   );
 }

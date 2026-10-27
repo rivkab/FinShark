@@ -1,0 +1,37 @@
+.ds-combobox {
+  position: relative;
+}
+
+.ds-combobox__list {
+  position: absolute;
+  z-index: 20;
+  inset-inline: 0;
+  top: 100%;
+  margin: 2px 0 0;
+  padding: var(--space-1) 0;
+  max-height: 16rem;
+  overflow: auto;
+  list-style: none;
+  background: var(--color-bg-raised);
+  border: 1px solid var(--color-border-control);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-popover);
+}
+
+.ds-combobox__item,
+.ds-combobox__empty {
+  padding: 6px 10px;
+  text-align: left;
+}
+
+.ds-combobox__item {
+  cursor: pointer;
+}
+
+.ds-combobox__item--active {
+  background: var(--color-bg-hover);
+}
+
+.ds-combobox__empty {
+  color: var(--color-text-muted);
+}

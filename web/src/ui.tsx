@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import type { AccountDto, ConceptDto, FactDto, FactStatus, InstitutionDto, Language } from "@finshark/shared";
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { AccountDto, ConceptDto, DocumentStatus, FactDto, FactStatus, InstitutionDto, Language } from "@finshark/shared";
 import { errorText } from "./api.ts";
 import { useRefData } from "./context.tsx";
+import { Badge, Combobox, DataText, Select, Text, Value, type SelectOption } from "./ds/index.ts";
 import { accountNames, conceptPickerParts, filterConcepts, groupAccounts, pickLabel } from "./labels.ts";
-import { Text, Value } from "./Value.tsx";
 
 // ---------------------------------------------------------------- loading
 
@@ -49,36 +49,71 @@ export function useLoad<T>(fn: () => Promise<T>, key: unknown): Loaded<T> {
   return { data, error, loading, reload: () => run(false), setData };
 }
 
+/**
+ * Run an async action (a save, a status change) with busy and error state handled.
+ * `run` resolves true when the action succeeded.
+ */
+export function useAction<A extends unknown[]>(fn: (...args: A) => Promise<unknown>) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const fnRef = useRef(fn);
+  fnRef.current = fn;
+
+  const run = useCallback(async (...args: A): Promise<boolean> => {
+    setBusy(true);
+    setError(null);
+    try {
+      await fnRef.current(...args);
+      return true;
+    } catch (e) {
+      setError(errorText(e));
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }, []);
+
+  return { run, busy, error, setError };
+}
+
 // ---------------------------------------------------------------- small display pieces
 
-export function ErrorNote({ children }: { children: ReactNode }) {
-  return children ? <p className="error" role="alert">{children}</p> : null;
-}
-
-export function Warning({ children }: { children: ReactNode }) {
-  return <p className="warning" role="alert">{children}</p>;
-}
+const FACT_STATUS = {
+  verified: { tone: "success", label: "verified" },
+  proposed: { tone: "warning", label: "not verified" },
+  rejected: { tone: "danger", label: "rejected" },
+  superseded: { tone: "muted", label: "replaced" },
+} as const satisfies Record<FactStatus, { tone: "success" | "warning" | "danger" | "muted"; label: string }>;
 
 export function StatusBadge({ status }: { status: FactStatus }) {
-  return <span className={`badge ${status}`}>{status}</span>;
+  const { tone, label } = FACT_STATUS[status];
+  return <Badge tone={tone}>{label}</Badge>;
+}
+
+export function DocStatusBadge({ status }: { status: DocumentStatus }) {
+  if (status === "reviewed") return <Badge tone="success">reviewed</Badge>;
+  if (status === "inbox") return <Badge tone="warning">needs review</Badge>;
+  return <Badge tone="muted">{status}</Badge>;
 }
 
 /** A fact's concept name, in the language of the account it belongs to. */
 export function FactConcept({ fact }: { fact: Pick<FactDto, "conceptLabelEn" | "conceptLabelHe" | "accountLanguage"> }) {
-  const label = pickLabel(fact.conceptLabelEn, fact.conceptLabelHe, fact.accountLanguage);
-  return (
-    <span title={fact.conceptLabelEn}>
-      <Text>{label}</Text>
-    </span>
-  );
+  return <DataText>{pickLabel(fact.conceptLabelEn, fact.conceptLabelHe, fact.accountLanguage)}</DataText>;
 }
 
 export function AccountName({ account }: { account: Pick<AccountDto, "displayName" | "altName"> }) {
   const n = accountNames(account);
   return (
     <>
-      <Text>{n.name}</Text>
-      {n.alt && <span className="alt"> (<Text>{n.alt}</Text>)</span>}
+      <DataText>{n.name}</DataText>
+      {n.alt && (
+        <>
+          {" "}
+          <Text tone="muted">
+            (<DataText>{n.alt}</DataText>)
+          </Text>
+        </>
+      )}
     </>
   );
 }
@@ -116,27 +151,28 @@ export function AccountSelect({
   const g = groupAccounts(accounts, institutionId);
   const ownerNames = (a: AccountDto) =>
     a.owners.map((o) => people.find((p) => p.id === o.personId)?.displayName).filter((n): n is string => !!n).join(", ");
-  const opt = (a: AccountDto) => (
-    <option key={a.id} value={a.id} dir="auto">
-      {a.displayName}
-      {a.altName ? ` (${a.altName})` : ""} · {a.institutionName} · {a.nativeCurrency}
-      {ownerNames(a) ? ` · ${ownerNames(a)}` : ""}
-    </option>
-  );
-  return (
-    <select id={id} value={value} onChange={(e) => onChange(e.target.value)}>
-      <option value="">{noneLabel}</option>
-      {g.others.length === 0 ? (
-        g.preferred.map(opt)
-      ) : (
-        <>
-          <optgroup label="This institution">{g.preferred.map(opt)}</optgroup>
-          <optgroup label="Other accounts">{g.others.map(opt)}</optgroup>
-        </>
-      )}
-    </select>
+  const opt = (a: AccountDto): SelectOption => ({
+    value: String(a.id),
+    label: `${a.displayName}${a.altName ? ` (${a.altName})` : ""} · ${a.institutionName} · ${a.nativeCurrency}${ownerNames(a) ? ` · ${ownerNames(a)}` : ""}`,
+    dir: "auto",
+  });
+  return g.others.length === 0 ? (
+    <Select id={id} value={value} onChange={onChange} placeholder={noneLabel} options={g.preferred.map(opt)} />
+  ) : (
+    <Select
+      id={id}
+      value={value}
+      onChange={onChange}
+      placeholder={noneLabel}
+      groups={[
+        { label: "This institution", options: g.preferred.map(opt) },
+        { label: "Other accounts", options: g.others.map(opt) },
+      ]}
+    />
   );
 }
+
+const PERIOD_NOTE = { instant: "at a date", duration: "over a period" } as const;
 
 /** Searchable concept list: type English or Hebrew words (or part of the id). */
 export function ConceptPicker({
@@ -150,76 +186,44 @@ export function ConceptPicker({
 }) {
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
-  const [hi, setHi] = useState(0);
   const selected = concepts.find((c) => c.id === value);
-  const results = filterConcepts(concepts, q).slice(0, 30);
   const shown = open ? q : selected ? (selected.jurisdiction === "IL" && selected.labelHe ? `${selected.labelEn} / ${selected.labelHe}` : selected.labelEn) : "";
 
-  const pick = (c: ConceptDto) => {
-    onChange(c);
-    setQ("");
-    setOpen(false);
-  };
-
   return (
-    <div className="picker">
-      <input
-        type="text"
-        dir="auto"
-        value={shown}
-        placeholder="Search, e.g. balance, interest, יתרה"
-        aria-label="Kind of number"
-        onFocus={() => {
-          setOpen(true);
-          setHi(0);
-        }}
-        onBlur={() => setOpen(false)}
-        onChange={(e) => {
-          setQ(e.target.value);
-          setOpen(true);
-          setHi(0);
-        }}
-        onKeyDown={(e) => {
-          if (e.key === "ArrowDown") {
-            e.preventDefault();
-            setHi((h) => Math.min(h + 1, results.length - 1));
-          } else if (e.key === "ArrowUp") {
-            e.preventDefault();
-            setHi((h) => Math.max(h - 1, 0));
-          } else if (e.key === "Enter" && open) {
-            e.preventDefault();
-            const c = results[hi];
-            if (c) pick(c);
-          } else if (e.key === "Escape") {
-            setOpen(false);
-          }
-        }}
-      />
-      {open && (
-        <ul className="picker-list" role="listbox">
-          {results.length === 0 && <li className="none">No match</li>}
-          {results.map((c, i) => {
-            const p = conceptPickerParts(c);
-            return (
-              <li
-                key={c.id}
-                role="option"
-                aria-selected={i === hi}
-                className={i === hi ? "hi" : undefined}
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  pick(c);
-                }}
-                onMouseEnter={() => setHi(i)}
-              >
-                {p.en}
-                {p.he && <span className="alt" dir="auto"> {p.he}</span>}
-                <small className="muted"> {c.periodType === "instant" ? "at a date" : c.periodType === "duration" ? "over a period" : ""}</small>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-    </div>
+    <Combobox
+      inputValue={shown}
+      onInputChange={setQ}
+      open={open}
+      onOpenChange={setOpen}
+      items={filterConcepts(concepts, q).slice(0, 30)}
+      getKey={(c) => c.id}
+      renderItem={(c) => {
+        const p = conceptPickerParts(c);
+        const note = PERIOD_NOTE[c.periodType as keyof typeof PERIOD_NOTE];
+        return (
+          <>
+            {p.en}
+            {p.he && (
+              <>
+                {" "}
+                <Text tone="muted"><DataText>{p.he}</DataText></Text>
+              </>
+            )}
+            {note && (
+              <>
+                {" "}
+                <Text tone="muted" size="sm">{note}</Text>
+              </>
+            )}
+          </>
+        );
+      }}
+      onPick={(c) => {
+        onChange(c);
+        setQ("");
+      }}
+      placeholder="Search, e.g. balance, interest, יתרה"
+      aria-label="Kind of number"
+    />
   );
 }

@@ -1,0 +1,47 @@
+.ds-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ds-list--divided .ds-list__item {
+  border-bottom: 1px solid var(--color-border);
+}
+
+.ds-list__item--current {
+  background: var(--color-bg-hover);
+}
+
+.ds-list__content,
+.ds-list__button {
+  display: block;
+  width: 100%;
+  padding: 8px 6px;
+  text-align: left;
+}
+
+/* Plain items line up with the text around the list; clickable ones keep room for their hover fill. */
+.ds-list__content {
+  padding-inline: 0;
+}
+
+.ds-list__button {
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+.ds-list__button:hover {
+  background: var(--color-bg-hover);
+}
+
+.ds-list__aside {
+  padding: 0 6px 8px;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.ds-list__content + .ds-list__aside,
+.ds-list__button + .ds-list__aside {
+  margin-top: -4px;
+}

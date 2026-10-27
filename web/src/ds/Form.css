@@ -1,0 +1,38 @@
+.ds-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.ds-field--grow {
+  flex: 1 1 10rem;
+}
+
+.ds-field__label {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--color-text-muted);
+}
+
+.ds-field__hint {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.ds-field__error {
+  font-size: var(--text-sm);
+  color: var(--color-danger);
+}
+
+.ds-field-group {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.ds-field-group .ds-field__label {
+  padding: 0;
+  margin-bottom: var(--space-1);
+}

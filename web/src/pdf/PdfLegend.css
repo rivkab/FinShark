@@ -1,0 +1,7 @@
+.pdf-legend { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-3); }
+.pdf-legend__item { display: inline-flex; align-items: center; gap: var(--space-1); }
+.pdf-legend__swatch { display: inline-block; width: 0.9em; height: 0.9em; border: 2px solid; }
+.pdf-legend__swatch--proposed { border-color: var(--on-paper-proposed); background: color-mix(in srgb, var(--on-paper-proposed) 18%, transparent); }
+.pdf-legend__swatch--verified { border-color: var(--on-paper-verified); background: color-mix(in srgb, var(--on-paper-verified) 18%, transparent); }
+.pdf-legend__swatch--rejected { border-color: var(--on-paper-rejected); background: color-mix(in srgb, var(--on-paper-rejected) 18%, transparent); }
+.pdf-legend__swatch--hint { border-color: var(--on-paper-hint); border-style: dashed; }
