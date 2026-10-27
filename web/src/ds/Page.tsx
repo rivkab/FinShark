@@ -69,12 +69,12 @@ export interface PanelProps {
 
 export function Panel({ title, actions, revealKey, children }: PanelProps) {
   const ref = useRef<HTMLDivElement>(null);
-  const first = useRef(true);
+  // Compare with the previous key rather than flagging the first run: StrictMode (the dev server) runs
+  // effects twice on mount, which would scroll a panel below the fold into view on page load.
+  const shown = useRef(revealKey);
   useEffect(() => {
-    if (first.current) {
-      first.current = false;
-      return;
-    }
+    if (shown.current === revealKey) return;
+    shown.current = revealKey;
     ref.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
   }, [revealKey]);
   return (

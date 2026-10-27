@@ -1055,3 +1055,22 @@ reduced to "Conflicts only".
 Statuses, the verify API and the query policy (unverified facts are excluded by default
 and surfaced) are unchanged. The fact page keeps its status and the Verify, Correct and
 Reopen actions, since that is where a conflict is resolved.
+
+### D16. People are managed where they're used (2026-10-27)
+
+There is no People page. A separate list of people was more screen than a household needs,
+so each kind of person is handled where it matters. D13's model (two flags on one list) is
+unchanged.
+
+Owners are added or promoted from the owner picker (Add account, account edit) and from
+the Person picker on person-level numbers such as W-2 wages. "Add owner..." takes a new
+name, which creates an owner who does not use the app, or offers "Also an owner: <name>"
+for an app user who is not yet an owner, which turns `owns_accounts` on instead of adding
+a second row for the same human. App users are added and renamed on the "Who's using FinShark?" screen, which lists only
+app users; owners who do not use the app appear only in the owner pickers. A name
+is unique ignoring case; renaming is `PUT /api/people/:id/name`. History stores person ids,
+not names, so a rename shows everywhere.
+
+Turning a flag off has no UI for now. `PUT /api/people/:id/roles` still supports it, with
+the rules in D13. The roles and name endpoints work before anyone is chosen (like creating
+a person), because the switch screen is where they are used.

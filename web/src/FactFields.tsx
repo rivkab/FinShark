@@ -1,6 +1,7 @@
 import type { AccountDto, ConceptDto } from "@finshark/shared";
 import type { PeriodSource } from "./dates.ts";
 import { applyConceptChange, isMoney, type FactFormState } from "./factForm.ts";
+import { AddOwner } from "./AddOwner.tsx";
 import { useRefData } from "./context.tsx";
 import { DateInput, Field, FieldRow, Select, Stack, Text, TextInput } from "./ds/index.ts";
 import { AccountSelect, ConceptPicker } from "./ui.tsx";
@@ -44,14 +45,17 @@ export function FactFormFields({
         </Field>
       )}
       {concept?.subject === "person" && (
-        <Field label="Person">
-          <Select
-            value={form.personId}
-            onChange={(v) => set({ personId: v })}
-            placeholder="Choose a person..."
-            options={people.filter((p) => p.ownsAccounts).map((p) => ({ value: String(p.id), label: p.displayName, dir: "auto" }))}
-          />
-        </Field>
+        <Stack gap={2}>
+          <Field label="Person">
+            <Select
+              value={form.personId}
+              onChange={(v) => set({ personId: v })}
+              placeholder="Choose a person..."
+              options={people.filter((p) => p.ownsAccounts).map((p) => ({ value: String(p.id), label: p.displayName, dir: "auto" }))}
+            />
+          </Field>
+          <AddOwner onOwner={(p) => set({ personId: String(p.id) })} />
+        </Stack>
       )}
       <FieldRow>
         <Field label="Value" grow>

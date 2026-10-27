@@ -2,15 +2,15 @@ import { useEffect, useState } from "react";
 import type { PersonDto } from "@finshark/shared";
 import { AccountsPage } from "./AccountsPage.tsx";
 import { apiFetch, errorText, fetchSession, setActingPerson } from "./api.ts";
-import { ActorProvider, RefDataProvider, useRefData } from "./context.tsx";
+import { ActorProvider, RefDataProvider } from "./context.tsx";
 import { DemoPage } from "./DemoPage.tsx";
 import { DesignPage } from "./DesignPage.tsx";
 import { DocumentsPage } from "./DocumentsPage.tsx";
 import { DocumentView } from "./DocumentView.tsx";
 import { FactHistory, FactsPage } from "./FactsPage.tsx";
-import { AddPersonForm, PeoplePage } from "./PeoplePage.tsx";
 import { parseHash, type Route } from "./route.ts";
 import { useAction, useLoad } from "./ui.tsx";
+import { WhoIsUsing } from "./WhoIsUsing.tsx";
 import type { DocumentDto } from "@finshark/shared";
 import {
   Alert,
@@ -22,7 +22,6 @@ import {
   Field,
   FieldRow,
   Form,
-  Heading,
   Inline,
   Link,
   Loading,
@@ -38,7 +37,6 @@ const NAV = [
   { label: "Accounts", href: "#/accounts", pages: ["accounts"] },
   { label: "Documents", href: "#/documents", pages: ["documents", "document"] },
   { label: "Facts", href: "#/facts", pages: ["facts", "fact"] },
-  { label: "People", href: "#/people", pages: ["people"] },
 ] as const;
 
 function useRoute(): Route {
@@ -84,32 +82,28 @@ export function App() {
 
   if (personId === null) {
     return (
-      <Page width="narrow" title="Who's using FinShark?">
-        <Text as="p">This records who verifies and changes things. It is not a password.</Text>
-        <Inline>
-          {people.filter((p) => p.usesApp).map((p) => (
-            <Button
-              key={p.id}
-              onClick={() => setActingPerson(String(p.id)).then(() => setPersonId(String(p.id)), () => setError("Could not save your choice."))}
-            >
-              <DataText>{p.displayName}</DataText>
-            </Button>
-          ))}
-        </Inline>
-        <Heading level={2}>Someone else?</Heading>
-        <AddPersonForm label="Add and continue" onAdded={async (p) => {
-          await reloadPeople();
-          await setActingPerson(String(p.id));
+      <WhoIsUsing
+        people={people}
+        onChanged={reloadPeople}
+        onChosen={async (p) => {
+          try {
+            await setActingPerson(String(p.id));
+          } catch {
+            throw new Error("Could not save your choice.");
+          }
           setPersonId(String(p.id));
-        }} />
-      </Page>
+        }}
+      />
     );
   }
 
   return (
     <ActorProvider personId={personId} setPersonId={setPersonId} people={people}>
       <RefDataProvider>
-        <Shell people={people} personId={personId} onSwitch={() => setPersonId(null)} onPeopleChanged={reloadPeople} />
+        <Shell people={people} personId={personId} onSwitch={() => {
+          // Owners may have been added while working; refresh the list the switch screen shows.
+          void reloadPeople().finally(() => setPersonId(null));
+        }} />
       </RefDataProvider>
     </ActorProvider>
   );
@@ -153,14 +147,11 @@ function Shell({
   people,
   personId,
   onSwitch,
-  onPeopleChanged,
 }: {
   people: PersonDto[];
   personId: string;
   onSwitch: () => void;
-  onPeopleChanged: () => Promise<void>;
 }) {
-  const { reload } = useRefData();
   const route = useRoute();
   const person = people.find((p) => String(p.id) === personId);
   // Keyed on the route so the inbox count refreshes as you move around.
@@ -190,11 +181,7 @@ function Shell({
         </Inline>
       }
     >
-      {route.page === "people" ? (
-        <PeoplePage people={people} personId={personId} onAdded={async () => { await onPeopleChanged(); await reload(); }} />
-      ) : (
-        <RoutePage route={route} />
-      )}
+      <RoutePage route={route} />
     </AppShell>
   );
 }
@@ -206,7 +193,6 @@ function RoutePage({ route }: { route: Route }) {
     case "facts": return <FactsPage filters={route.filters} />;
     case "fact": return <FactHistory id={route.id} />;
     case "accounts": return <AccountsPage />;
-    case "people": return null; // rendered by Shell, which owns the people list
     case "demo": return <DemoPage />;
     case "design": return <DesignPage />;
   }

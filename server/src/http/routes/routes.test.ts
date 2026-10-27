@@ -302,6 +302,70 @@ describe("people", () => {
   });
 });
 
+describe("rename a person", () => {
+  const rename = (id: number | string, displayName: unknown) => call("PUT", `/api/people/${id}/name`, { displayName });
+
+  it("renames with trimming, and keeps history on the same person", async () => {
+    const dana = await choosePerson(); // Dana, id 1
+    const res = await rename(dana, "  Dana B  ");
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ id: dana, displayName: "Dana B", ownsAccounts: true, usesApp: true });
+    expect((await call("GET", "/api/people")).json().people[0].displayName).toBe("Dana B");
+    // Changing only the case of one's own name is allowed.
+    expect((await rename(dana, "DANA B")).statusCode).toBe(200);
+  });
+
+  it("rejects a name another person has (ignoring case) and blank names", async () => {
+    const dana = await choosePerson();
+    const noa = (await call("POST", "/api/people", { displayName: "Noa" })).json();
+    const dup = await rename(noa.id, " dana ");
+    expect(dup.statusCode).toBe(409);
+    expect(dup.json().error).toBe("duplicate_name");
+    expect((await rename(noa.id, "   ")).statusCode).toBe(400);
+    expect((await rename(noa.id, "")).statusCode).toBe(400);
+    expect((await rename(noa.id, 5)).statusCode).toBe(400);
+    expect((await call("GET", "/api/people")).json().people.map((p: { displayName: string }) => p.displayName)).toEqual(["Dana", "Noa"]);
+    expect(dana).toBe(1);
+  });
+
+  it("404 for an unknown person", async () => {
+    await choosePerson();
+    expect((await rename(99, "Zed")).statusCode).toBe(404);
+    expect((await rename("abc", "Zed")).statusCode).toBe(404);
+  });
+
+  it("works before anyone is chosen (the switch screen), like promoting a person", async () => {
+    const created = await call("POST", "/api/people", { displayName: "Kid", usesApp: false });
+    const id = created.json().id as number;
+    expect((await rename(id, "Kiddo")).statusCode).toBe(200);
+    const promoted = await call("PUT", `/api/people/${id}/roles`, { ownsAccounts: true, usesApp: true });
+    expect(promoted.json()).toMatchObject({ displayName: "Kiddo", ownsAccounts: true, usesApp: true });
+    expect((await call("POST", "/api/session/person", { personId: String(id) })).statusCode).toBe(200);
+  });
+
+  it("stores no name snapshot: owners and fact events refer to people by id", async () => {
+    await choosePerson();
+    const inst = (await call("POST", "/api/institutions", { name: "Bank", country: "US", kind: "financial" })).json();
+    await call("POST", "/api/accounts", { institutionId: inst.id, displayName: "A", nativeCurrency: "USD", owners: [{ personId: 1 }] });
+    await rename(1, "Dana B");
+    const acct = (await call("GET", "/api/accounts")).json().accounts[0];
+    expect(acct.owners).toEqual([{ personId: 1, role: expect.any(String), share: null }]);
+    expect((await call("GET", "/api/people")).json().people[0].displayName).toBe("Dana B");
+  });
+});
+
+describe("create people with roles", () => {
+  it("creates an owner who is not an app user, and a user who is not an owner", async () => {
+    const kid = await call("POST", "/api/people", { displayName: "Kid", ownsAccounts: true, usesApp: false });
+    expect(kid.statusCode).toBe(201);
+    expect(kid.json()).toMatchObject({ ownsAccounts: true, usesApp: false });
+    const helper = await call("POST", "/api/people", { displayName: "Helper", ownsAccounts: false, usesApp: true });
+    expect(helper.json()).toMatchObject({ ownsAccounts: false, usesApp: true });
+    expect((await call("POST", "/api/people", { displayName: "Bad", ownsAccounts: "yes" })).statusCode).toBe(400);
+    expect((await call("POST", "/api/people", { displayName: "   " })).statusCode).toBe(400);
+  });
+});
+
 describe("account owners", () => {
   async function setup() {
     await choosePerson(); // Dana, id 1

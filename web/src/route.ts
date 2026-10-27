@@ -6,7 +6,6 @@ export type Route =
   | { page: "facts"; filters: Record<string, string> }
   | { page: "fact"; id: number }
   | { page: "accounts" }
-  | { page: "people" }
   | { page: "demo" }
   | { page: "design" };
 
@@ -45,8 +44,6 @@ export function parseHash(hash: string): Route {
     }
     case "accounts":
       return { page: "accounts" };
-    case "people":
-      return { page: "people" };
     case "demo":
       return { page: "demo" };
     case "design":
