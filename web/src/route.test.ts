@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { hrefDocument, hrefDocuments, hrefFacts, parseHash } from "./route.ts";
+import { hrefAccount, hrefDocument, hrefDocuments, hrefFacts, parseHash } from "./route.ts";
 
 describe("parseHash", () => {
   it("reads an account filter on the documents list", () => {
@@ -8,6 +8,11 @@ describe("parseHash", () => {
     expect(hrefDocuments(7)).toBe("#/documents?account=7");
     expect(hrefDocuments()).toBe("#/documents");
     expect(hrefDocuments(null)).toBe("#/documents");
+  });
+  it("parses an account page", () => {
+    expect(parseHash("#/accounts/7")).toEqual({ page: "account", id: 7 });
+    expect(parseHash("#/accounts/x")).toEqual({ page: "accounts" });
+    expect(hrefAccount(7)).toBe("#/accounts/7");
   });
   it("defaults to accounts", () => {
     for (const h of ["", "#", "#/", "#/nonsense"]) expect(parseHash(h)).toEqual({ page: "accounts" });

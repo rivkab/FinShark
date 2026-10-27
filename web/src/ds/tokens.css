@@ -80,6 +80,13 @@
   --color-danger-bg: var(--palette-red-100);
   --color-neutral-bg: var(--palette-paper-200);
 
+  /* ---- charts */
+  --color-chart-line: var(--palette-ink-900);
+  --color-chart-point: var(--palette-ink-900);
+  --color-chart-grid: var(--palette-paper-300);
+  --color-chart-zero: var(--palette-stone-500);
+  --color-chart-gap: var(--palette-paper-500);
+
   /* ---- drawn on the PDF page (theme-independent) */
   --on-paper-proposed: var(--palette-ochre-600);
   --on-paper-verified: var(--palette-green-600);

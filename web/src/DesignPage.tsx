@@ -1,5 +1,6 @@
 import { useState } from "react";
 import {
+  type ChartPoint,
   Alert,
   AppHeader,
   Avatar,
@@ -46,6 +47,7 @@ import {
   TextArea,
   TextInput,
   Th,
+  TimeSeriesChart,
   Timeline,
   TimelineItem,
   Tr,
@@ -275,6 +277,14 @@ function Feedback() {
   );
 }
 
+const chartPoints: ChartPoint[] = [
+  { key: "a", date: "2025-01-31", minor: 4_821_055n, label: "₪48,210.55", detail: "31 Jan 2025 · statement p. 2" },
+  { key: "b", date: "2025-02-28", minor: 5_130_000n, label: "₪51,300.00", detail: "28 Feb 2025 · statement p. 2", href: "#/design" },
+  { key: "c1", date: "2025-03-31", minor: 4_990_000n, label: "₪49,900.00", tone: "warning", detail: "31 Mar 2025 · conflict" },
+  { key: "c2", date: "2025-03-31", minor: 5_020_000n, label: "₪50,200.00", tone: "warning", detail: "31 Mar 2025 · conflict" },
+  { key: "d", date: "2025-09-30", minor: 5_480_000n, label: "₪54,800.00", detail: "30 Sep 2025 · statement p. 1" },
+];
+
 function DataDisplay() {
   const [sort, setSort] = useState<"asc" | "desc">("asc");
   const [current, setCurrent] = useState("one");
@@ -362,6 +372,17 @@ function DataDisplay() {
             <TimelineItem time="29 Sep 2026">Proposed from page 2</TimelineItem>
           </Timeline>
         </Inline>
+        <TimeSeriesChart
+          aria-label="Example account balance over time"
+          points={chartPoints}
+          segments={[
+            { from: "2025-01-31", to: "2025-02-28" },
+            { from: "2025-02-28", to: "2025-03-31" },
+          ]}
+          gaps={[{ from: "2025-03-31", to: "2025-09-30" }]}
+          formatTick={(minor) => `₪${(minor / 100n).toLocaleString("en-US")}`}
+          endMarker
+        />
         <Dropzone onFiles={() => undefined} accept="application/pdf" multiple prompt="Drop PDF statements here" buttonLabel="Choose files" />
       </Stack>
     </Section>

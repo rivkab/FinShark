@@ -15,7 +15,7 @@ import type {
   SetAccountOwnersRequest,
 } from "@finshark/shared";
 import { apiFetch } from "./api.ts";
-import { hrefDocuments, hrefFacts } from "./route.ts";
+import { hrefAccount, hrefDocuments, hrefFacts } from "./route.ts";
 import { AddOwner } from "./AddOwner.tsx";
 import { useActor, useRefData } from "./context.tsx";
 import { sortInstitutions } from "./institutionSort.ts";
@@ -70,10 +70,10 @@ const CADENCE_OPTIONS = [
 ];
 
 export function AccountsPage() {
-  const { institutions, accounts, people } = useRefData();
+  const { institutions, accounts, people, concepts } = useRefData();
   const docs = useLoad(() => apiFetch<{ documents: DocumentDto[] }>("/api/documents").then((r) => r.documents), 0);
   const balances = useLoad(
-    () => apiFetch<{ facts: FactDto[] }>("/api/facts?concept=balance.ending").then((r) => latestBalances(r.facts)),
+    () => apiFetch<{ facts: FactDto[] }>("/api/facts").then((r) => latestBalances(r.facts, concepts)),
     0,
   );
   const proposed = useLoad(() => apiFetch<{ facts: FactDto[] }>("/api/facts?status=proposed").then((r) => r.facts.length), 0);
@@ -299,7 +299,7 @@ function AccountRow({ account: a, docCount, balance }: { account: AccountDto; do
         <Td>
           <RowAction onClick={startEdit}>Edit</RowAction>
           <Stack gap={1}>
-            <Text weight="semibold"><AccountName account={a} /></Text>
+            <Text weight="semibold"><Link href={hrefAccount(a.id)}><AccountName account={a} /></Link></Text>
             {docCount !== null && (
               <Text as="div" size="sm">
                 {docCount === 0 ? (
