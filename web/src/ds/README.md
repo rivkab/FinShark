@@ -40,6 +40,7 @@ ds/
   fonts.css      @font-face for bundled woff2 in fonts/
   base.css       reset, body, focus ring, ::selection, headings reset
   index.ts       barrel: every primitive and its prop types
+  chartScale.ts  pure axis math for TimeSeriesChart (tested)
   icons.tsx      inline stroke SVG icons (aria-hidden), currentColor
   <Primitive>.tsx + <Primitive>.css
   conventions.test.ts
@@ -182,6 +183,21 @@ to `--space-n`). Defaults noted per component.
   `current` = bg-hover; with `onClick` the content is a full-width ghost button. `aside`
   is a small muted line after it, outside the button, for links (never nest links in buttons).
 - `Timeline({ children })`, `TimelineItem({ time: ReactNode, children })`.
+- `TimeSeriesChart({ "aria-label", points: ChartPoint[], segments: { from, to }[], gaps: { from, to }[], formatTick: (minor: bigint) => string, start?, end?, endMarker? })`:
+  hand-written responsive SVG (no chart library), 260px tall, y labels in a left gutter
+  (mono, tabular). Generic: it knows only dates and bigint minor units, never domain types.
+  `ChartPoint = { key, date, minor: bigint, label, detail?: ReactNode, tone?: "default" | "warning", href? }`.
+  The y axis always includes zero (`chartScale.niceTicks`; zero line slightly stronger); the
+  x axis is proportional to real dates between `start`/`end` (default first/last point,
+  always widened to hold every point). Pixel positions are computed in bigint
+  (`chartScale.scaleY`); only the final pixel value is a Number. `segments` draw a thin ink
+  line between the single points at two dates; `gaps` draw a hatched band with a muted "no
+  statement" label when wide enough; `endMarker` draws a dashed "closed" line at the end.
+  Points are dots (diamond in `--color-warning` for `tone="warning"`), each focusable with a
+  12px hit area; hover or focus shows a tooltip (`label` + `detail`, `--shadow-popover`);
+  ArrowLeft/ArrowRight move focus, click or Enter goes to `href`. Focus ring `--color-focus`.
+  Renders nothing for empty `points` (the page shows `Empty`). Colors come from
+  `--color-chart-line|point|grid|zero|gap`. The table next to it is the accessible equivalent.
 - `Dropzone({ onFiles: (files: File[]) => void, accept: string, multiple?, prompt, buttonLabel })`:
   dashed 2px `--color-border-control` box, radius-lg, bg-raised; dragging-over =
   border `--color-accent`, bg bg-hover. Owns drag state and the hidden file input.

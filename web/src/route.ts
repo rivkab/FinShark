@@ -6,6 +6,7 @@ export type Route =
   | { page: "facts"; filters: Record<string, string> }
   | { page: "fact"; id: number }
   | { page: "accounts" }
+  | { page: "account"; id: number }
   | { page: "demo" }
   | { page: "design" };
 
@@ -43,7 +44,7 @@ export function parseHash(hash: string): Route {
       return { page: "facts", filters };
     }
     case "accounts":
-      return { page: "accounts" };
+      return second !== undefined && ID.test(second) ? { page: "account", id: Number(second) } : { page: "accounts" };
     case "demo":
       return { page: "demo" };
     case "design":
@@ -61,3 +62,4 @@ export const hrefFacts = (filters: Record<string, string> = {}): string => {
   const s = new URLSearchParams(Object.entries(filters).filter(([, v]) => v)).toString();
   return `#/facts${s ? `?${s}` : ""}`;
 };
+export const hrefAccount = (id: number): string => `#/accounts/${id}`;

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import type { PersonDto } from "@finshark/shared";
+import { AccountPage } from "./AccountPage.tsx";
 import { AccountsPage } from "./AccountsPage.tsx";
 import { apiFetch, errorText, fetchSession, setActingPerson } from "./api.ts";
 import { ActorProvider, RefDataProvider } from "./context.tsx";
@@ -34,7 +35,7 @@ import {
 } from "./ds/index.ts";
 
 const NAV = [
-  { label: "Accounts", href: "#/accounts", pages: ["accounts"] },
+  { label: "Accounts", href: "#/accounts", pages: ["accounts", "account"] },
   { label: "Documents", href: "#/documents", pages: ["documents", "document"] },
   { label: "Facts", href: "#/facts", pages: ["facts", "fact"] },
 ] as const;
@@ -193,6 +194,7 @@ function RoutePage({ route }: { route: Route }) {
     case "facts": return <FactsPage filters={route.filters} />;
     case "fact": return <FactHistory id={route.id} />;
     case "accounts": return <AccountsPage />;
+    case "account": return <AccountPage id={route.id} />;
     case "demo": return <DemoPage />;
     case "design": return <DesignPage />;
   }

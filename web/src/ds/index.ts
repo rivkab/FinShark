@@ -20,3 +20,4 @@ export { Stat, StatGroup, type StatProps } from "./Stat.tsx";
 export { Table, TableBody, TableHead, Td, Th, Tr, type ThProps } from "./Table.tsx";
 export { Heading, Kbd, Text, type HeadingProps, type TextProps, type Tone } from "./Text.tsx";
 export { Timeline, TimelineItem } from "./Timeline.tsx";
+export { TimeSeriesChart, type ChartPoint, type TimeSeriesChartProps } from "./TimeSeriesChart.tsx";

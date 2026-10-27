@@ -1,0 +1,119 @@
+.ds-chart {
+  position: relative;
+  width: 100%;
+}
+
+.ds-chart__svg {
+  display: block;
+  max-width: 100%;
+  overflow: visible;
+}
+
+.ds-chart__grid {
+  stroke: var(--color-chart-grid);
+  stroke-width: 1;
+}
+
+.ds-chart__zero {
+  stroke: var(--color-chart-zero);
+  stroke-width: 1.5;
+}
+
+.ds-chart__tick {
+  fill: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--text-xs);
+}
+
+.ds-chart__gap-label {
+  fill: var(--color-text-muted);
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+}
+
+.ds-chart__hatch {
+  stroke: var(--color-chart-gap);
+  stroke-width: 1;
+}
+
+.ds-chart__end {
+  stroke: var(--color-chart-zero);
+  stroke-width: 1.5;
+  stroke-dasharray: 4 3;
+}
+
+.ds-chart__line {
+  stroke: var(--color-chart-line);
+  stroke-width: 1.5;
+  fill: none;
+}
+
+.ds-chart__point {
+  outline: none;
+}
+
+.ds-chart__point--link {
+  cursor: pointer;
+}
+
+.ds-chart__hit {
+  fill: transparent;
+}
+
+.ds-chart__ring {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 2;
+}
+
+.ds-chart__point:focus-visible .ds-chart__ring {
+  stroke: var(--color-focus);
+}
+
+.ds-chart__dot {
+  fill: var(--color-chart-point);
+  stroke: var(--color-bg);
+  stroke-width: 1.5;
+}
+
+.ds-chart__point--warning .ds-chart__dot {
+  fill: var(--color-warning);
+}
+
+.ds-chart__point:hover .ds-chart__dot {
+  stroke: var(--color-chart-line);
+}
+
+.ds-chart__tooltip {
+  position: absolute;
+  z-index: 1;
+  transform: translate(12px, -50%);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-bg-raised);
+  border: 1px solid var(--color-border-control);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-popover);
+  font-size: var(--text-sm);
+  color: var(--color-text);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.ds-chart__tooltip--left {
+  transform: translate(calc(-100% - 12px), -50%);
+}
+
+.ds-chart__tooltip-label {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--weight-medium);
+}
+
+.ds-chart__tooltip-detail {
+  color: var(--color-text-muted);
+  font-size: 12px;
+}

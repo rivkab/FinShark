@@ -1074,3 +1074,43 @@ not names, so a rename shows everywhere.
 Turning a flag off has no UI for now. `PUT /api/people/:id/roles` still supports it, with
 the rules in D13. The roles and name endpoints work before anyone is chosen (like creating
 a person), because the switch screen is where they are used.
+
+### D17. Each account has a page with a balance chart (2026-10-27)
+
+An account now has a page (`#/accounts/:id`, opened from its name on the Accounts page).
+The page leads with a chart of the account's balance over time, followed by the same points
+as a table, then its documents and notes. Every dot is one fact and links to its evidence:
+clicking a dot opens the document at the box the number came from.
+
+What is plotted: instant money facts on the account whose concept is `balance.ending` or
+has `generic_concept_id = 'balance.ending'` (e.g. `il.pension.accrued_savings`), with status
+verified or proposed. Duration facts (interest, wages) are not drawn on a balance line.
+Rejected and superseded facts are not plotted. `latestBalances` on the Accounts page uses
+the same concept matching, so the latest value and the chart cannot disagree.
+
+The chart must not suggest data it doesn't have:
+
+- The x axis is proportional to real dates, not evenly spaced points. It runs from
+  `opened_on` (or the first point) to `closed_on` (or the last point); a closed account
+  shows an end marker.
+- Consecutive points are joined by a line, except across a **gap**: two points further
+  apart than the account's `statement_cadence` allows (monthly 45 days, quarterly 120,
+  twice a year 200, once a year 400; irregular or unset never gaps). A gap breaks the
+  line and is shown as a hatched "no statement" band.
+- A **conflict** (two different values on the same date; per D15 one of them is
+  `proposed`) shows both values in the warning tone and breaks the line at that date.
+  Equal values from several sources are one dot ("2 sources").
+- Only values in the account's native currency are plotted; nothing is converted. Values
+  in other currencies, or without an exact amount, are listed under the chart as
+  "Not plotted", never dropped.
+- The y axis always includes zero, so a change is never exaggerated. The table below
+  has the exact numbers and is the chart's accessible equivalent.
+
+No chart library: the chart is a hand-written SVG primitive (`ds/TimeSeriesChart`).
+Money stays bigint: axis ticks are chosen in minor units and pixel positions are computed
+with bigint arithmetic; only the final pixel coordinate becomes a `Number`. Labels use
+`formatAmount`. The series is built by a pure, tested function (`web/src/balanceSeries.ts`);
+no new API endpoint is needed (`GET /api/facts?account=:id` plus the concept registry).
+
+A household total over time is a query (§4) needing alignment across accounts and
+currency conversion (§5), so it is not part of this page.
