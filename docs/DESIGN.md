@@ -1035,3 +1035,23 @@ right-aligns a Hebrew cell and a mixed column becomes ragged. Every cell, field 
 is left-aligned; Hebrew data is isolated inline (`<bdi dir="auto">`), so it still reads
 right-to-left and numbers inside it are still not reordered. Text inputs keep
 `dir="auto"` for typing, with left alignment.
+
+### D15. Verified is the default and not shown; only conflicts are flagged (2026-10-27)
+
+Since D11 a number is verified when it is saved from a document, so labelling facts
+"verified" is noise. The UI no longer does: a document marked reviewed means its numbers
+are checked. A fact stays `proposed` only when verification hit a 409 conflict, so the
+UI shows `proposed` as a "conflict" and nothing else about status needs a mark.
+
+The Accounts page labels totals "USD accounts" (still summing verified balances only),
+shows the "Conflicting values" stat only when there are some (linking to Facts filtered
+to `proposed`), and shows a plain date under a verified latest balance, or
+"conflict · date" under a proposed one. The Facts page drops its Status column and
+shows current facts only (verified and proposed); deleted (`rejected`) and replaced
+(`superseded`) facts appear behind a "Show deleted and replaced" toggle (`removed=1` in
+the URL hash), labelled "deleted" or "replaced" and muted. The status filter is
+reduced to "Conflicts only".
+
+Statuses, the verify API and the query policy (unverified facts are excluded by default
+and surfaced) are unchanged. The fact page keeps its status and the Verify, Correct and
+Reopen actions, since that is where a conflict is resolved.

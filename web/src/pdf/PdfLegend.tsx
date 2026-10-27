@@ -3,9 +3,9 @@ import "./PdfLegend.css";
 
 // Swatches mirror the highlight styles in PdfViewer.css.
 const ITEMS = [
-  { variant: "proposed", label: "not verified" },
-  { variant: "verified", label: "verified" },
-  { variant: "rejected", label: "rejected" },
+  { variant: "verified", label: "saved" },
+  { variant: "proposed", label: "conflict" },
+  { variant: "rejected", label: "deleted" },
   { variant: "hint", label: "where it was last time" },
 ] as const;
 

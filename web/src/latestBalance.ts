@@ -2,7 +2,7 @@ import type { FactDto } from "@finshark/shared";
 
 /**
  * The newest ending balance per account, by the date it is reported for (ties go to the later fact).
- * Rejected and superseded facts are skipped; a proposed one still counts, and the caller shows it as unverified.
+ * Rejected and superseded facts are skipped; a proposed one (a conflict with a verified value) still counts, and the caller flags it.
  */
 export function latestBalances(facts: FactDto[]): Map<number, FactDto> {
   const latest = new Map<number, FactDto>();

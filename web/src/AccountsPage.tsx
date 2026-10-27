@@ -96,18 +96,19 @@ export function AccountsPage() {
           {totals.map((t) => (
             <Stat
               key={t.currency}
-              label={`${t.currency} accounts, verified`}
-              value={t.formatted === null ? "None verified" : <Value>{t.formatted}</Value>}
+              label={`${t.currency} accounts`}
+              value={t.formatted === null ? "None" : <Value>{t.formatted}</Value>}
               note={coverageNote(t)}
             />
           ))}
-          {proposed.error && <Stat label="Awaiting check" value="?" note="Could not load the values to check" tone="warning" />}
-          {proposed.data !== null && (
+          {proposed.error && <Stat label="Conflicting values" value="?" note="Could not load the conflicts" tone="warning" />}
+          {toCheck > 0 && (
             <Stat
-              label="Awaiting check"
-              value={toCheck === 0 ? "None" : toCheck === 1 ? "1 value" : `${toCheck} values`}
-              note={toCheck === 0 ? undefined : "Verify or correct them"}
-              {...(toCheck > 0 ? { tone: "warning" as const, href: hrefFacts({ status: "proposed" }) } : {})}
+              label="Conflicting values"
+              value={toCheck === 1 ? "1 value" : `${toCheck} values`}
+              note="A different value is already verified for the same thing"
+              tone="warning"
+              href={hrefFacts({ status: "proposed" })}
             />
           )}
         </StatGroup>
@@ -201,7 +202,7 @@ function OwnersView({ account }: { account: AccountDto }) {
   );
 }
 
-/** The latest balance: the amount, and whether it is verified and as of when. */
+/** The latest balance: the amount and its date; a conflicting (proposed) one is flagged. */
 function LatestValue({ balance }: { balance: FactDto | null | undefined }) {
   if (balance === undefined) return null;
   if (balance === null) return <Text tone="muted">none yet</Text>;
@@ -210,9 +211,9 @@ function LatestValue({ balance }: { balance: FactDto | null | undefined }) {
     <Stack gap={1}>
       <Value size="lg">{balance.formatted}</Value>
       {balance.status === "verified" ? (
-        <StatusMark tone="success" icon="check">verified · {date}</StatusMark>
+        <Text size="sm" tone="muted">{date}</Text>
       ) : (
-        <StatusMark tone="warning" icon="clock">not verified · {date}</StatusMark>
+        <StatusMark tone="warning" icon="clock">conflict · {date}</StatusMark>
       )}
     </Stack>
   );
