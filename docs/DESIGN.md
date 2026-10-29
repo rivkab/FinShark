@@ -1149,7 +1149,11 @@ account, per calendar year.
   approximation. Where a statement states its own highest balance, that is used instead.
 - **Completeness:** every foreign account open at any time in the year must have balances
   covering the year; months without a statement are listed as missing, never skipped.
-- **Needs from the build:** the query engine (§4) with a `maxInPeriod` measure, rate
-  sources and conversion (§5), and an evidence packet export (§4.8).
+- **Needs from the build:** the query engine (§4) with a `maxInPeriod` measure, and rate
+  sources and conversion (§5).
+- **Lower priority:** the snapshot and evidence packet export (§4.8). The FBAR report is
+  usable on screen without it; build it once a result actually has to be handed to a
+  preparer or kept as a record. Corrections to a fact still never rewrite history, since
+  facts are append-only; what is deferred is freezing "what we sent" as a snapshot.
 - **Not in scope yet:** Form 8938 (different thresholds and a different rate treatment),
   which reuses the same pieces.
