@@ -3,6 +3,7 @@ import type { DatabaseSync } from "node:sqlite";
 import type { ApiErrorBody } from "@finshark/shared";
 import { FactError } from "../../facts/index.ts";
 import { ImportError } from "../../documents/import.ts";
+import { RateParseError } from "../../currency/index.ts";
 import type { ExtractFn } from "../../documents/text-layer.ts";
 import type { VaultLayout } from "../../vault/layout.ts";
 
@@ -50,6 +51,8 @@ export function apiErrorHandler(err: unknown, _req: FastifyRequest, reply: Fasti
     else if (err.code === "not_found") [status, payload] = body(404, "not_found", err.message, err.details);
     else if (err.code === "bad_state") [status, payload] = body(409, "bad_state", err.message, err.details);
     else [status, payload] = body(400, err.code, err.message, err.details);
+  } else if (err instanceof RateParseError) {
+    [status, payload] = body(400, "bad_request", err.message);
   } else if (err instanceof ImportError) {
     [status, payload] = body(400, "not_a_pdf", err.message);
   } else if (typeof err === "object" && err !== null && "statusCode" in err && typeof (err as { statusCode: unknown }).statusCode === "number") {

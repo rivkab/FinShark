@@ -46,6 +46,9 @@
 //   POST /api/facts/:id/correct  CorrectFactRequest      -> 201 { fact, superseded } | 409 conflict
 //   POST /api/facts/:id/reject   { reason }              -> { fact }
 //   POST /api/facts/:id/reopen                           -> { fact }
+//   POST /api/exchange-rates/import  raw text/csv body (US Treasury Reporting Rates of Exchange),
+//                             optional query: note            -> 201 ImportRatesResponse
+//   GET  /api/exchange-rates                 -> { rates: ExchangeRateDto[] }
 //   GET  /api/session / POST /api/session/person         (see server/src/http/app.ts)
 
 import type { PdfRect } from "./pdf-geometry.ts";
@@ -466,4 +469,27 @@ export interface CorrectFactRequest {
 export interface ConflictDetails {
   /** Verified facts in the same slot with a different value. */
   conflicts: FactDto[];
+}
+
+// ---------------------------------------------------------------- exchange rates
+
+/** 1 `base` = `rate` `quote`; `rate` is an exact decimal string, never a number. */
+export interface ExchangeRateDto {
+  id: number;
+  sourceId: string;
+  base: string;
+  quote: string;
+  rate: string;
+  rateDate: string;
+  note: string | null;
+  importedAt: string;
+}
+
+export interface ImportRatesResponse {
+  added: number;
+  unchanged: number;
+  /** Dates already stored with a different rate; the stored rate was kept. */
+  conflicts: { quote: string; rateDate: string; stored: string; incoming: string }[];
+  /** Rows for currencies the app does not support yet. */
+  skippedCurrencies: number;
 }

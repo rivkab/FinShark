@@ -7,6 +7,7 @@ export type Route =
   | { page: "fact"; id: number }
   | { page: "accounts" }
   | { page: "account"; id: number }
+  | { page: "rates" }
   | { page: "demo" }
   | { page: "design" };
 
@@ -45,6 +46,8 @@ export function parseHash(hash: string): Route {
     }
     case "accounts":
       return second !== undefined && ID.test(second) ? { page: "account", id: Number(second) } : { page: "accounts" };
+    case "rates":
+      return { page: "rates" };
     case "demo":
       return { page: "demo" };
     case "design":

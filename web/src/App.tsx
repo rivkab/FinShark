@@ -9,6 +9,7 @@ import { DesignPage } from "./DesignPage.tsx";
 import { DocumentsPage } from "./DocumentsPage.tsx";
 import { DocumentView } from "./DocumentView.tsx";
 import { FactHistory, FactsPage } from "./FactsPage.tsx";
+import { RatesPage } from "./RatesPage.tsx";
 import { parseHash, type Route } from "./route.ts";
 import { useAction, useLoad } from "./ui.tsx";
 import { WhoIsUsing } from "./WhoIsUsing.tsx";
@@ -38,6 +39,7 @@ const NAV = [
   { label: "Accounts", href: "#/accounts", pages: ["accounts", "account"] },
   { label: "Documents", href: "#/documents", pages: ["documents", "document"] },
   { label: "Facts", href: "#/facts", pages: ["facts", "fact"] },
+  { label: "Rates", href: "#/rates", pages: ["rates"] },
 ] as const;
 
 function useRoute(): Route {
@@ -195,6 +197,7 @@ function RoutePage({ route }: { route: Route }) {
     case "fact": return <FactHistory id={route.id} />;
     case "accounts": return <AccountsPage />;
     case "account": return <AccountPage id={route.id} />;
+    case "rates": return <RatesPage />;
     case "demo": return <DemoPage />;
     case "design": return <DesignPage />;
   }
