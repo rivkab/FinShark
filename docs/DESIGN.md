@@ -1115,9 +1115,6 @@ no new API endpoint is needed (`GET /api/facts?account=:id` plus the concept reg
 A household total over time is a query (§4) needing alignment across accounts and
 currency conversion (§5), so it is not part of this page.
 
-**TODO:** add filters to the Accounts page (list view), e.g. by institution, owner, type,
-currency and open/closed.
-
 ### D18. FBAR is the first workflow (2026-10-28)
 
 FBAR (FinCEN 114) goes first because it needs the fewest concepts: one number per foreign
@@ -1207,3 +1204,77 @@ and currencies, so it is a query (§4, §5), not this page.
 
 This amends D15 (the Facts page, and where the "Conflicting values" stat links) and D17
 (the "All numbers for this account" link).
+
+### D20. Backups run from the app (2026-10-29)
+
+**Proposed, not built yet.** The backup format, create, verify, restore, keys and
+retention (§8) are written and tested in `server/src/backup/`, but nothing in the app
+calls them, so a vault is not backed up today. This wires them in. It changes no part
+of the format.
+
+**Key setup (once per vault).** A Backups page offers "Set up backups":
+
+1. Generate the vault's age key pair (§8.3). The public key is saved in the vault, so
+   creating a backup never needs a secret.
+2. Save the private key in the macOS Keychain (generic password, service `FinShark
+   backup`, account = vault id) with the built-in `security` tool, so no new dependency
+   is needed. The key is passed to it on standard input, never as an argument, so it
+   never shows in the process list. This replaces the Keychain TODO in `keys.ts`.
+3. Show a **recovery sheet** to print: the private key, the vault id and RECOVERY.txt.
+   Setup is not finished until the person types back the last 6 characters of the key,
+   which shows the sheet was actually seen.
+4. Ask for a passphrase and write `vault-key.age` (the key wrapped with it, §8.3 (c))
+   into each backup folder, so a backup can be restored with that file and the
+   passphrase even if the Mac and the sheet are lost.
+
+Until setup is done, every page shows a warning that the vault has no backups.
+
+**Where backups go.** Always into the vault's `backups/` folder, which protects against
+mistakes and corruption but not against losing the disk. A second folder can be chosen
+(an external drive, or a folder that another app syncs; FinShark itself never uploads
+anything). Each backup is written to the vault's folder first and then copied to the
+second folder. If the second folder is missing, for example an unplugged drive, that is
+shown as a warning; the backup still counts.
+
+**When.** There is no background service. While the app is running it backs up:
+
+- on start, if the last backup is more than a day old;
+- 10 minutes after the last change, if anything has changed since the last backup;
+- when someone clicks "Back up now".
+
+Only one backup runs at a time. Each one follows §8.2: verify the vault, write the
+backup, then verify the written file straight away with the Keychain key. If the key
+can't be read (the Keychain is locked or the key is missing), the backup is still
+written, marked "not yet verified", and verified the next time the key is available.
+
+**Retention.** The current GFS policy (`selectBackupsToDelete`; keep 7 daily, 8 weekly
+and 24 monthly) is applied after each successful backup, in each folder separately. It
+deletes only files that match FinShark's backup file name pattern, and never deletes the
+newest verified backup.
+
+**Backups page** (`#/backups`, in the nav):
+
+- The last backup: when it was made, its size, whether it was verified, and the second
+  folder's status.
+- A list of backups, with "Verify" on each one. Verify runs the full §8.2 check.
+- "Back up now", plus the key and folder settings.
+- Nothing is hidden: a failed verify, vault-check problems (`vaultWarnings`) and a
+  backup older than 7 days show as warnings on every page, not only here.
+
+**Restore** is not in the web app. It always goes into a *new* vault directory (§8.2),
+then the app is started with `FINSHARK_VAULT` pointing at it. A script does this:
+`npm run restore -- <file.ffbackup> <new-dir>`. It uses the Keychain key, or asks for
+the `vault-key.age` passphrase. The Backups page explains how to use it. A "restore
+drill" (restoring into a temporary folder and checking that it opens) is what Verify
+already does.
+
+**API:** `GET /api/backups` (status and list), `POST /api/backups` (back up now),
+`POST /api/backups/:name/verify`, and `POST /api/backups/setup`. Setup is the only call
+that returns the private key, and it does so once. All of these sit behind the existing
+localhost security (§9). The scheduler takes the clock as an input, so it can be tested.
+
+**Open choices:**
+
+- The second folder: an external drive, a synced folder, or none for now?
+- Whether "10 minutes after the last change" is the right trigger, or only on start and
+  on demand.
