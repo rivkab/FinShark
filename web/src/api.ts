@@ -1,5 +1,5 @@
 // Same-origin API client. Mutations attach the per-session CSRF token (DESIGN §9).
-import type { ApiErrorBody, ConflictDetails, FactDto, UploadResponse } from "@finshark/shared";
+import type { ApiErrorBody, ConflictDetails, FactDto, ImportRatesResponse, UploadResponse } from "@finshark/shared";
 
 export interface SessionInfo {
   csrfToken: string;
@@ -89,6 +89,20 @@ export async function uploadPdf(file: File): Promise<UploadResponse> {
   });
   if (!res.ok) throw await toError(res, "POST", path);
   return (await res.json()) as UploadResponse;
+}
+
+/** Import a US Treasury Reporting Rates of Exchange CSV as the raw request body. */
+export async function uploadRatesCsv(file: File, note: string): Promise<ImportRatesResponse> {
+  if (!csrfToken) await fetchSession();
+  const path = `/api/exchange-rates/import${note.trim() ? `?note=${encodeURIComponent(note.trim())}` : ""}`;
+  const res = await fetch(path, {
+    method: "POST",
+    headers: { Accept: "application/json", "Content-Type": "text/csv", "X-FinShark-CSRF": csrfToken! },
+    credentials: "same-origin",
+    body: await file.text(),
+  });
+  if (!res.ok) throw await toError(res, "POST", path);
+  return (await res.json()) as ImportRatesResponse;
 }
 
 export function setActingPerson(personId: string): Promise<{ personId: string }> {

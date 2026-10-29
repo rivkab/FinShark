@@ -31,6 +31,7 @@ describe("parseHash", () => {
     expect(parseHash("#/accounts")).toEqual({ page: "accounts" });
     // There is no People page (DESIGN D16); an old bookmark lands on the default page.
     expect(parseHash("#/people")).toEqual({ page: "accounts" });
+    expect(parseHash("#/rates")).toEqual({ page: "rates" });
     expect(parseHash("#/demo")).toEqual({ page: "demo" });
     expect(parseHash("#/design")).toEqual({ page: "design" });
   });

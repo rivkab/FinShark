@@ -752,8 +752,8 @@ SQL mode.
    The household members share one macOS login.
 2. ~~Volume & mix~~ **Answered: several dozen documents a year, about a third in
    Hebrew; mostly digital PDFs, few scans.** See §14 D2.
-3. **Which workflows first?** CSS Profile / school aid, US return, FBAR/8938, Israeli
-   return — each implies the first ~20 concepts and which rate sources matter.
+3. ~~Which workflows first?~~ **Answered: FBAR first, because it's the simplest.** See
+   §14 D18. CSS Profile / school aid, the US return, Form 8938 and the Israeli return follow.
 4. ~~UI language~~ **Answered: Hebrew labels for Israeli documents and accounts,
    English for American ones; app menus and buttons in English.** See §14 D3.
    Exports: source language by default, with an "English export" option.
@@ -1114,3 +1114,30 @@ no new API endpoint is needed (`GET /api/facts?account=:id` plus the concept reg
 
 A household total over time is a query (§4) needing alignment across accounts and
 currency conversion (§5), so it is not part of this page.
+
+**TODO:** add filters to the Accounts page (list view), e.g. by institution, owner, type,
+currency and open/closed.
+
+### D18. FBAR is the first workflow (2026-10-28)
+
+FBAR (FinCEN 114) goes first because it needs the fewest concepts: one number per foreign
+account, per calendar year.
+
+- **Question to answer:** for each foreign financial account, its maximum value during the
+  calendar year, converted to USD, plus whether the aggregate of all foreign accounts
+  exceeded $10,000 at any time.
+- **Rate source:** US Treasury reporting rate for 31 December (C7, §5). Treasury rates are
+  quarterly, so the rate source must be imported data with provenance.
+- **Republished rates:** Treasury sometimes republishes a quarter-end rate mid-quarter (same
+  record date, later effective date). A rate is stored under its *effective* date, so both
+  are kept and a lookup for exactly 31 December returns the rate effective that day.
+  Lookups never fall back to the nearest date (§5).
+- **Maximum value (C8):** statements give period-end balances, so the maximum is a derived
+  fact with a recorded derivation ("max of 12 verified month-end balances"), shown as an
+  approximation. Where a statement states its own highest balance, that is used instead.
+- **Completeness:** every foreign account open at any time in the year must have balances
+  covering the year; months without a statement are listed as missing, never skipped.
+- **Needs from the build:** the query engine (§4) with a `maxInPeriod` measure, rate
+  sources and conversion (§5), and an evidence packet export (§4.8).
+- **Not in scope yet:** Form 8938 (different thresholds and a different rate treatment),
+  which reuses the same pieces.

@@ -4,6 +4,7 @@ import { MUTATING_METHODS, requestPath } from "../security.ts";
 import { apiErrorHandler, actorId, type ApiContext } from "./common.ts";
 import { registerDocumentRoutes } from "./documents.ts";
 import { registerFactRoutes } from "./facts.ts";
+import { registerRateRoutes } from "./rates.ts";
 import { registerReferenceRoutes } from "./reference.ts";
 
 export { DEFAULT_MAX_UPLOAD_BYTES, type ApiContext } from "./common.ts";
@@ -23,4 +24,5 @@ export function registerApiRoutes(app: FastifyInstance, ctx: ApiContext): void {
   registerReferenceRoutes(app, ctx);
   registerDocumentRoutes(app, ctx);
   registerFactRoutes(app, ctx);
+  registerRateRoutes(app, ctx);
 }

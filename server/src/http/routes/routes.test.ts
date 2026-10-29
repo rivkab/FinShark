@@ -611,3 +611,34 @@ describe("uploads", () => {
     expect(r.json()).toMatchObject({ valueMatchesSource: null, fact: { sources: [{ quotedText: null }] } });
   });
 });
+
+describe("exchange rates", () => {
+  const CSV = [
+    "record_date,country,currency,country_currency_desc,exchange_rate,effective_date",
+    "2025-12-31,Israel,Shekel,Israel-Shekel,3.21,2025-12-31",
+    '2025-12-31,"Euro Zone",Euro,"Euro Zone-Euro",0.85,2025-12-31',
+  ].join("\n");
+  const importCsv = (csv: string, query = "") => call("POST", `/api/exchange-rates/import${query}`, Buffer.from(csv), { "content-type": "text/csv" });
+
+  it("imports a CSV, lists the rates, and reports a re-import and a conflict", async () => {
+    await choosePerson();
+    const first = await importCsv(CSV, "?note=downloaded%20today");
+    expect(first.statusCode).toBe(201);
+    expect(first.json()).toEqual({ added: 1, unchanged: 0, conflicts: [], skippedCurrencies: 1 });
+    expect((await call("GET", "/api/exchange-rates")).json().rates).toMatchObject([
+      { sourceId: "us_treasury_reporting", base: "USD", quote: "ILS", rate: "3.21", rateDate: "2025-12-31", note: "downloaded today" },
+    ]);
+    expect((await importCsv(CSV)).json()).toMatchObject({ added: 0, unchanged: 1 });
+    const changed = CSV.replace("3.21", "3.30");
+    expect((await importCsv(changed)).json().conflicts).toEqual([{ quote: "ILS", rateDate: "2025-12-31", stored: "3.21", incoming: "3.30" }]);
+  });
+
+  it("refuses a wrong content type, a wrong file, and needs a chosen person", async () => {
+    expect((await importCsv(CSV)).statusCode).toBe(409);
+    await choosePerson();
+    expect((await call("POST", "/api/exchange-rates/import", {})).statusCode).toBe(415);
+    const bad = await importCsv("a,b\n1,2");
+    expect(bad.statusCode).toBe(400);
+    expect(bad.json().message).toMatch(/Missing column/);
+  });
+});
