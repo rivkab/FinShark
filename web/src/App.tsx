@@ -8,8 +8,9 @@ import { DemoPage } from "./DemoPage.tsx";
 import { DesignPage } from "./DesignPage.tsx";
 import { DocumentsPage } from "./DocumentsPage.tsx";
 import { DocumentView } from "./DocumentView.tsx";
-import { FactHistory, FactsPage } from "./FactsPage.tsx";
+import { FactHistory } from "./FactPage.tsx";
 import { FbarPage } from "./FbarPage.tsx";
+import { PayPage } from "./PayPage.tsx";
 import { RatesPage } from "./RatesPage.tsx";
 import { parseHash, type Route } from "./route.ts";
 import { useAction, useLoad } from "./ui.tsx";
@@ -38,8 +39,8 @@ import {
 
 const NAV = [
   { label: "Accounts", href: "#/accounts", pages: ["accounts", "account"] },
+  { label: "Pay", href: "#/pay", pages: ["pay"] },
   { label: "Documents", href: "#/documents", pages: ["documents", "document"] },
-  { label: "Facts", href: "#/facts", pages: ["facts", "fact"] },
   { label: "FBAR", href: "#/fbar", pages: ["fbar"] },
   { label: "Rates", href: "#/rates", pages: ["rates"] },
 ] as const;
@@ -195,11 +196,11 @@ function RoutePage({ route }: { route: Route }) {
   switch (route.page) {
     case "documents": return <DocumentsPage accountId={route.accountId} />;
     case "document": return <DocumentView id={route.id} factId={route.factId} />;
-    case "facts": return <FactsPage filters={route.filters} />;
     case "fact": return <FactHistory id={route.id} />;
     case "accounts": return <AccountsPage />;
     case "account": return <AccountPage id={route.id} />;
     case "fbar": return <FbarPage year={route.year} />;
+    case "pay": return <PayPage />;
     case "rates": return <RatesPage />;
     case "demo": return <DemoPage />;
     case "design": return <DesignPage />;

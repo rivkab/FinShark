@@ -2,9 +2,8 @@ import { useState } from "react";
 import type { DocumentDto, FactDetailDto, FactDto, FactEventDto } from "@finshark/shared";
 import { ApiError, apiFetch } from "./api.ts";
 import { useActor, useRefData } from "./context.tsx";
-import { hrefDocument, hrefFact, hrefFacts } from "./route.ts";
+import { hrefDocument, hrefFact } from "./route.ts";
 import { factDateLabel } from "./suggest.ts";
-import { visibleFacts } from "./factsView.ts";
 import { AccountName, FactAmount, FactConcept, StatusBadge, useAction, useLoad } from "./ui.tsx";
 import { FactFormFields } from "./FactFields.tsx";
 import { buildCorrectRequest, formFromFact, mismatchWarning, validateFactForm, type FactFormState } from "./factForm.ts";
@@ -42,128 +41,6 @@ import {
   Value,
 } from "./ds/index.ts";
 
-// ---------------------------------------------------------------- list
-
-const STATUS_OPTIONS = [{ value: "proposed", label: "Conflicts only" }];
-
-export function FactsPage({ filters }: { filters: Record<string, string> }) {
-  const { concepts, accounts } = useRefData();
-  const docs = useLoad(() => apiFetch<{ documents: DocumentDto[] }>("/api/documents").then((r) => r.documents), 0);
-  const query = new URLSearchParams(Object.entries(filters).filter(([k, v]) => v && k !== "removed")).toString();
-  const facts = useLoad(() => apiFetch<{ facts: FactDto[] }>(`/api/facts${query ? `?${query}` : ""}`).then((r) => r.facts), query);
-  const conflicts = filters["status"] === "proposed";
-  const showRemoved = filters["removed"] === "1";
-  const shown = facts.data ? visibleFacts(facts.data, showRemoved) : null;
-
-  const set = (k: string, v: string) => {
-    window.location.hash = hrefFacts({ ...filters, [k]: v }).slice(1);
-  };
-
-  return (
-    <Page eyebrow={conflicts ? "Conflicting values" : showRemoved ? "Every recorded number" : "Every current number"} title="Facts">
-      {conflicts && (
-        <Text as="p" tone="muted">
-          A different value is already verified for the same kind of number, account, person and date. Open each one to verify it anyway, correct it or delete it.
-        </Text>
-      )}
-      <FieldRow align="end">
-        <Field label="Show">
-          <Select value={filters["status"] ?? ""} onChange={(v) => set("status", v)} placeholder="All current" options={STATUS_OPTIONS} />
-        </Field>
-        <Field label="Kind of number">
-          <Select
-            value={filters["concept"] ?? ""}
-            onChange={(v) => set("concept", v)}
-            placeholder="Any"
-            options={concepts.map((c) => ({ value: c.id, label: `${c.labelEn}${c.jurisdiction === "IL" && c.labelHe ? ` / ${c.labelHe}` : ""}` }))}
-          />
-        </Field>
-        <Field label="Account">
-          <Select
-            value={filters["account"] ?? ""}
-            onChange={(v) => set("account", v)}
-            placeholder="Any"
-            options={accounts.map((a) => ({ value: String(a.id), label: a.displayName, dir: "auto" }))}
-          />
-        </Field>
-        <Field label="Document">
-          <Select
-            value={filters["document"] ?? ""}
-            onChange={(v) => set("document", v)}
-            placeholder="Any"
-            options={(docs.data ?? []).map((d) => ({ value: String(d.id), label: d.originalFilename, dir: "auto" }))}
-          />
-        </Field>
-        <Checkbox checked={showRemoved} onChange={(checked) => set("removed", checked ? "1" : "")} label="Show deleted and replaced" />
-        {Object.values(filters).some(Boolean) && <Link href={hrefFacts()}>Clear filters</Link>}
-      </FieldRow>
-      <Alert tone="danger">{facts.error}</Alert>
-      {shown && shown.length === 0 && <Empty>No facts match.</Empty>}
-      {shown && shown.length > 0 && (
-        <Table aria-label="Facts">
-          <TableHead>
-            <Tr>
-              <Th>Kind of number</Th>
-              <Th>Account</Th>
-              <Th align="end">Value</Th>
-              <Th>Date</Th>
-              <Th>From</Th>
-              <Th>{null}</Th>
-            </Tr>
-          </TableHead>
-          <TableBody>
-            {shown.map((f) => (
-              <Tr key={f.id} tone={f.status === "rejected" || f.status === "superseded" ? "muted" : "default"}>
-                <Td>
-                  <Stack gap={1}>
-                    <FactConcept fact={f} />
-                    {f.status !== "verified" && <Inline><StatusBadge status={f.status} /></Inline>}
-                  </Stack>
-                </Td>
-                <Td>
-                  <Stack gap={1}>
-                    {f.accountName !== null ? <DataText>{f.accountName}</DataText> : <Text tone="muted">none</Text>}
-                    {f.accountName === null && <DocumentAccountHint fact={f} docs={docs.data} />}
-                  </Stack>
-                </Td>
-                <Td align="end"><FactAmount fact={f} /></Td>
-                <Td><Value>{factDateLabel(f)}</Value></Td>
-                <Td>
-                  {f.sources[0] ? (
-                    <Link href={hrefDocument(f.sources[0].documentId, f.id)}><DataText>{f.sources[0].documentName}</DataText></Link>
-                  ) : (
-                    <Text tone="muted">{f.origin}</Text>
-                  )}
-                </Td>
-                <Td>
-                  {f.status === "proposed" ? (
-                    <LinkButton size="sm" variant="primary" href={hrefFact(f.id)}>Check</LinkButton>
-                  ) : (
-                    <Link href={hrefFact(f.id)}>History</Link>
-                  )}
-                </Td>
-              </Tr>
-            ))}
-          </TableBody>
-        </Table>
-      )}
-    </Page>
-  );
-}
-
-/** A fact recorded without an account whose document is linked to one: show the link, but don't treat it as the fact's account. */
-function DocumentAccountHint({ fact, docs }: { fact: FactDto; docs: DocumentDto[] | null }) {
-  const { accounts } = useRefData();
-  const linked = new Set((docs ?? []).filter((d) => fact.sources.some((s) => s.documentId === d.id)).flatMap((d) => d.accountIds));
-  const names = accounts.filter((a) => linked.has(a.id)).map((a) => a.displayName);
-  if (names.length === 0) return null;
-  return (
-    <Text as="div" size="sm" tone="muted">
-      its document is linked to <DataText>{names.join(", ")}</DataText>; this number isn't. <Link href={hrefFact(fact.id)}>Fix</Link>
-    </Text>
-  );
-}
-
 // ---------------------------------------------------------------- history
 
 export function FactHistory({ id }: { id: number }) {
@@ -175,7 +52,7 @@ export function FactHistory({ id }: { id: number }) {
   // One action at a time: its busy flag disables every button, its error shows below.
   const act = useAction((job: () => Promise<unknown>) => job());
 
-  const back = { href: "#/facts", label: "All facts" };
+  const back = { href: "#/accounts", label: "Accounts" };
   if (detail.error) {
     return (
       <Page back={back} title="Fact">

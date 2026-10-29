@@ -41,7 +41,7 @@
 //   POST /api/facts           ProposeFactRequest         -> 201 ProposeFactResponse
 //   POST /api/attestations    AttestationRequest         -> 201 { fact: FactDto }
 //   GET  /api/review-queue                   -> { items: FactDto[] }   (proposed facts, oldest first)
-//   GET  /api/facts?status=&concept=&account=&document=  -> { facts: FactDto[] }
+//   GET  /api/facts?status=&concept=&account=&person=&document=  -> { facts: FactDto[] }
 //   GET  /api/facts/:id                      -> FactDetailDto
 //   POST /api/facts/:id/verify               -> { fact } | 409 conflict (details: ConflictDetails)
 //   POST /api/facts/:id/correct  CorrectFactRequest      -> 201 { fact, superseded } | 409 conflict

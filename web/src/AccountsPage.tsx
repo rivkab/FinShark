@@ -16,7 +16,7 @@ import type {
   SetAccountOwnersRequest,
 } from "@finshark/shared";
 import { apiFetch } from "./api.ts";
-import { hrefAccount, hrefDocuments, hrefFacts } from "./route.ts";
+import { hrefAccount, hrefDocuments, hrefFact } from "./route.ts";
 import { AddOwner } from "./AddOwner.tsx";
 import { useActor, useRefData } from "./context.tsx";
 import { sortInstitutions } from "./institutionSort.ts";
@@ -26,6 +26,7 @@ import { coverageNote, currencyTotals, newestBalanceDate } from "./accountTotals
 import { formatDay, formatDayShort } from "./displayDate.ts";
 import { ACCOUNT_TYPE_LABEL, INSTITUTION_KIND_LABEL, currencyForCountry, languageForCountry } from "./labels.ts";
 import { latestBalances } from "./latestBalance.ts";
+import { factDateLabel } from "./suggest.ts";
 import {
   Alert,
   Button,
@@ -59,7 +60,7 @@ import {
   Tr,
   Value,
 } from "./ds/index.ts";
-import { InstitutionName, AccountName, langLabel, useAction, useLoad } from "./ui.tsx";
+import { InstitutionName, AccountName, FactAmount, FactConcept, langLabel, useAction, useLoad } from "./ui.tsx";
 
 const ACCOUNT_TYPE_OPTIONS = ACCOUNT_TYPES.map((t) => ({ value: t, label: ACCOUNT_TYPE_LABEL[t] }));
 const INSTITUTION_KIND_OPTIONS = INSTITUTION_KINDS.map((k) => ({ value: k, label: INSTITUTION_KIND_LABEL[k] }));
@@ -78,7 +79,7 @@ export function AccountsPage() {
     () => apiFetch<{ facts: FactDto[] }>("/api/facts").then((r) => latestBalances(r.facts, concepts)),
     0,
   );
-  const proposed = useLoad(() => apiFetch<{ facts: FactDto[] }>("/api/facts?status=proposed").then((r) => r.facts.length), 0);
+  const proposed = useLoad(() => apiFetch<{ facts: FactDto[] }>("/api/facts?status=proposed").then((r) => r.facts), 0);
   const [sort, setSort] = useState<{ key: AccountSortKey; dir: SortDir }>({ key: "name", dir: "asc" });
   const [filters, setFilters] = useState<AccountFilters>(NO_FILTERS);
   const setFilter = (key: keyof AccountFilters) => (value: string) => setFilters((f) => ({ ...f, [key]: value }));
@@ -96,7 +97,8 @@ export function AccountsPage() {
 
   const newest = balances.data ? newestBalanceDate(balances.data) : null;
   const totals = balances.data ? currencyTotals(accounts, balances.data) : [];
-  const toCheck = proposed.data ?? 0;
+  const conflicts = proposed.data ?? [];
+  const toCheck = conflicts.length;
 
   return (
     <Page eyebrow={newest ? `Latest statements · as of ${formatDay(newest)}` : "Latest statements"} title="Accounts">
@@ -117,10 +119,43 @@ export function AccountsPage() {
               value={toCheck === 1 ? "1 value" : `${toCheck} values`}
               note="A different value is already verified for the same thing"
               tone="warning"
-              href={hrefFacts({ status: "proposed" })}
             />
           )}
         </StatGroup>
+
+        {toCheck > 0 && (
+          <Section title="Conflicting values">
+            <Stack gap={3}>
+              <Text as="p" tone="muted">
+                A different value is already verified for the same kind of number, account, person and date. Open each one to verify it anyway, correct it or delete it.
+              </Text>
+              <Table aria-label="Conflicting values">
+                <TableHead>
+                  <Tr>
+                    <Th>Kind of number</Th>
+                    <Th>Account or person</Th>
+                    <Th>Date</Th>
+                    <Th align="end">Value</Th>
+                    <Th>{""}</Th>
+                  </Tr>
+                </TableHead>
+                <TableBody>
+                  {conflicts.map((f) => (
+                    <Tr key={f.id}>
+                      <Td><FactConcept fact={f} /></Td>
+                      <Td>
+                        {f.accountName !== null ? <DataText>{f.accountName}</DataText> : f.personName !== null ? <DataText>{f.personName}</DataText> : <Text tone="muted">none</Text>}
+                      </Td>
+                      <Td><Value>{factDateLabel(f)}</Value></Td>
+                      <Td align="end"><FactAmount fact={f} /></Td>
+                      <Td><Link href={hrefFact(f.id)}>Open</Link></Td>
+                    </Tr>
+                  ))}
+                </TableBody>
+              </Table>
+            </Stack>
+          </Section>
+        )}
 
         {accounts.length === 0 ? (
           <Empty>No accounts yet.{institutions.length === 0 ? " Add an institution first." : ""}</Empty>

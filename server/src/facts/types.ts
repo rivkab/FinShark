@@ -164,6 +164,7 @@ export interface FactFilters {
   conceptId?: string | undefined;
   accountId?: number | undefined;
   documentId?: number | undefined;
+  personId?: number | undefined;
 }
 
 export interface FactHistory {

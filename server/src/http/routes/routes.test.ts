@@ -232,6 +232,8 @@ describe("full flow", () => {
     expect((await q(`status=verified&concept=balance.ending&account=${accountId}&document=${documentId}`)).json().facts).toHaveLength(1);
     expect((await q("status=proposed")).json().facts).toHaveLength(0);
     expect((await q("status=bogus")).statusCode).toBe(400);
+    expect((await q(`person=${person}`)).json().facts).toHaveLength(0);
+    expect((await q("person=abc")).statusCode).toBe(400);
 
     // Conflict -> 409 with structured details; correct; reject; reopen.
     const other = (

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { hrefFbar, hrefAccount, hrefDocument, hrefDocuments, hrefFacts, parseHash } from "./route.ts";
+import { hrefPay, hrefFbar, hrefAccount, hrefDocument, hrefDocuments, hrefFact, parseHash } from "./route.ts";
 
 describe("parseHash", () => {
   it("reads an account filter on the documents list", () => {
@@ -14,6 +14,10 @@ describe("parseHash", () => {
     expect(parseHash("#/accounts/x")).toEqual({ page: "accounts" });
     expect(hrefAccount(7)).toBe("#/accounts/7");
   });
+  it("parses the pay page", () => {
+    expect(parseHash("#/pay")).toEqual({ page: "pay" });
+    expect(hrefPay()).toBe("#/pay");
+  });
   it("defaults to accounts", () => {
     for (const h of ["", "#", "#/", "#/nonsense"]) expect(parseHash(h)).toEqual({ page: "accounts" });
   });
@@ -24,9 +28,9 @@ describe("parseHash", () => {
     expect(parseHash("#/documents/x")).toEqual({ page: "documents", accountId: null });
   });
   it("parses facts, fact history, accounts, demo", () => {
-    expect(parseHash("#/facts")).toEqual({ page: "facts", filters: {} });
-    expect(parseHash("#/facts?status=proposed&account=3&junk=1")).toEqual({ page: "facts", filters: { status: "proposed", account: "3" } });
-    expect(parseHash("#/facts?removed=1")).toEqual({ page: "facts", filters: { removed: "1" } });
+    // The Facts list is gone (D19); `#/facts` falls back to the default page.
+    expect(parseHash("#/facts")).toEqual({ page: "accounts" });
+    expect(parseHash("#/facts?status=proposed")).toEqual({ page: "accounts" });
     expect(parseHash("#/facts/9")).toEqual({ page: "fact", id: 9 });
     expect(parseHash("#/accounts")).toEqual({ page: "accounts" });
     // There is no People page (DESIGN D16); an old bookmark lands on the default page.
@@ -43,7 +47,7 @@ describe("parseHash", () => {
   it("round-trips the href builders", () => {
     expect(parseHash(hrefDocument(5, 6))).toEqual({ page: "document", id: 5, factId: 6 });
     expect(hrefDocument(5)).toBe("#/documents/5");
-    expect(parseHash(hrefFacts({ concept: "balance.ending", status: "" }))).toEqual({ page: "facts", filters: { concept: "balance.ending" } });
+    expect(parseHash(hrefFact(9))).toEqual({ page: "fact", id: 9 });
   });
   it("survives malformed escapes", () => {
     expect(parseHash("#/%E0%A4%A")).toEqual({ page: "accounts" });

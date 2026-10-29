@@ -32,7 +32,7 @@ describe("content code is declarative", () => {
   const content = files(SRC, ".tsx").filter((p) => !inDir(p, "ds") && !inDir(p, "pdf"));
 
   it("finds files to check", () => {
-    expect(content.map(rel)).toEqual(expect.arrayContaining(["ui.tsx", "App.tsx", "AccountsPage.tsx", "DocumentView.tsx", "FactsPage.tsx"]));
+    expect(content.map(rel)).toEqual(expect.arrayContaining(["ui.tsx", "App.tsx", "AccountsPage.tsx", "DocumentView.tsx", "FactPage.tsx"]));
   });
 
   for (const file of content) {

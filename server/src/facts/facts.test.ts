@@ -491,6 +491,15 @@ describe("queries", () => {
     expect(ids({ documentId: 99 })).toEqual([]);
   });
 
+  it("filters facts by person", async () => {
+    const wages = { conceptId: "income.wages", instantDate: undefined, currency: "USD", periodStart: "2025-01-01", periodEnd: "2025-12-31", accountId: undefined };
+    const w = await proposeManualFact(deps, actor, balance({ ...wages, personId: actor }));
+    await proposeManualFact(deps, actor, balance());
+    const ids = (f: Parameters<typeof listFacts>[1]) => listFacts(v.vault.db, f).map((x) => x.fact.id);
+    expect(ids({ personId: actor })).toEqual([w.fact.id]);
+    expect(ids({ personId: 999 })).toEqual([]);
+  });
+
   it("getFactWithHistory refuses unknown ids", () => {
     expect(() => getFactWithHistory(v.vault.db, 404)).toThrow(FactError);
   });

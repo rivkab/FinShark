@@ -6,8 +6,9 @@ import { useRefData } from "./context.tsx";
 import { formatDay, formatDayShort } from "./displayDate.ts";
 import { ACCOUNT_TYPE_LABEL } from "./labels.ts";
 import { latestBalances } from "./latestBalance.ts";
-import { hrefFact, hrefFacts, hrefDocuments } from "./route.ts";
-import { AccountName, InstitutionName, useLoad } from "./ui.tsx";
+import { otherNumbers } from "./otherNumbers.ts";
+import { hrefFact, hrefDocuments } from "./route.ts";
+import { AccountName, FactConcept, InstitutionName, useLoad } from "./ui.tsx";
 import type { FactDto } from "@finshark/shared";
 import {
   Alert,
@@ -42,6 +43,8 @@ export function AccountPage({ id }: { id: number }) {
     [account, facts.data, concepts],
   );
   const latest = useMemo(() => (facts.data ? (latestBalances(facts.data, concepts).get(id) ?? null) : undefined), [facts.data, concepts, id]);
+
+  const others = useMemo(() => (facts.data ? otherNumbers(id, facts.data, concepts) : []), [facts.data, concepts, id]);
 
   if (!account) {
     return (
@@ -170,10 +173,50 @@ export function AccountPage({ id }: { id: number }) {
         </Section>
       )}
 
+      {others.length > 0 && (
+        <Section title="Other numbers">
+          <Table aria-label="Other numbers of this account, newest first">
+            <TableHead>
+              <Tr>
+                <Th>Kind of number</Th>
+                <Th>Period</Th>
+                <Th align="end">Value</Th>
+                <Th>Source</Th>
+              </Tr>
+            </TableHead>
+            <TableBody>
+              {others.map((r) => (
+                <Tr key={r.fact.id}>
+                  <Td><FactConcept fact={r.fact} /></Td>
+                  <Td><Value>{r.period}</Value></Td>
+                  <Td align="end">
+                    <Stack gap={1} align="end">
+                      <Value>{r.fact.formatted}</Value>
+                      {r.conflict && <StatusMark tone="warning" icon="clock">conflict</StatusMark>}
+                    </Stack>
+                  </Td>
+                  <Td>
+                    <Stack gap={1}>
+                      {r.sources.map((s) => (
+                        <Text key={`${s.factId}|${s.documentId}|${s.pageNo}`} as="div" size="sm">
+                          <Link href={s.href}>
+                            {s.documentName === null ? "attested" : <DataText>{s.documentName}</DataText>}
+                          </Link>
+                          {s.pageNo !== null && <Text tone="muted"> · page {s.pageNo}</Text>}
+                        </Text>
+                      ))}
+                    </Stack>
+                  </Td>
+                </Tr>
+              ))}
+            </TableBody>
+          </Table>
+        </Section>
+      )}
+
       <Section title="More">
         <Stack gap={2}>
           <Inline gap={4}>
-            <Link href={hrefFacts({ account: String(id) })}>All numbers for this account</Link>
             <Link href={hrefDocuments(id)}>Documents for this account</Link>
           </Inline>
           {account.notes && <Text as="div" tone="muted"><DataText block>{account.notes}</DataText></Text>}
