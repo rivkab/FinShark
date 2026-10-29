@@ -134,11 +134,13 @@ export function registerFactRoutes(app: FastifyInstance, ctx: ApiContext): void 
     const concept = one("concept");
     const account = intQ("account");
     const document = intQ("document");
+    const person = intQ("person");
     const facts = listFacts(ctx.db, {
       ...(status !== undefined ? { status: status as FactStatus } : {}),
       ...(concept !== undefined ? { conceptId: concept } : {}),
       ...(account !== undefined ? { accountId: account } : {}),
       ...(document !== undefined ? { documentId: document } : {}),
+      ...(person !== undefined ? { personId: person } : {}),
     });
     return { facts: facts.map(factToDto) };
   });

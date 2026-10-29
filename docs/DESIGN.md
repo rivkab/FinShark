@@ -1157,3 +1157,53 @@ account, per calendar year.
   facts are append-only; what is deferred is freezing "what we sent" as a snapshot.
 - **Not in scope yet:** Form 8938 (different thresholds and a different rate treatment),
   which reuses the same pieces.
+
+### D19. No Facts list; numbers are shown where their subject is (2026-10-29)
+
+Every number belongs either to an account or to a person
+(D8). The Accounts page and account pages (D17) already lead to account numbers and their
+evidence, so a separate list of every number is a second way into the same data. The
+Facts list page (`#/facts`), its nav tab and its filters are to be removed. The four things
+only it did move to where their subject is:
+
+- **Account numbers that are not balances** (interest, dividends, fees and other duration
+  facts) get an "Other numbers" table on the account page: kind of number, period, value
+  and a link to the box each came from. It replaces the "All numbers for this account" link.
+  Balances that are not plotted (D17) stay in "Not plotted".
+- **Conflicts** are listed on the Accounts page, in a "Conflicting values" section under
+  the stats: one row per proposed fact (kind of number, account or person, date, value),
+  linking to its fact page. The stat (D15) no longer links to the Facts list. Both are
+  shown only when there are conflicts.
+- **Person numbers** get a new **Pay** page, described below.
+- **Deleted and replaced numbers** are already visible in a fact's history and in its
+  document's list of numbers. They get no list of their own.
+
+Searching across accounts by kind of number (e.g. all interest in a year) is the job of
+queries (§4), not of a list to browse.
+
+The single fact page (`#/facts/:id`) stays. It is where a conflict is resolved (Verify,
+Correct, Reopen), where a number is deleted with a reason (D11), and where its history is
+shown. The FBAR report, the document view and the account chart link to it.
+
+**The Pay page** (`#/pay`) shows numbers whose concept has `subject = 'person'`: today
+`income.wages`, `us.w2.box1_wages`, `tax.withheld.us_federal` and
+`us.w2.box2_fed_withheld`. It is called Pay, not Income, because withholding is not income
+and interest income belongs to accounts. A household income total combines both subjects
+and currencies, so it is a query (§4, §5), not this page.
+
+- Grouped by person, then calendar year. Each row is one employer (an institution of kind
+  `employer`, D12, through the fact's document) with its wages and tax withheld. Every value
+  links to the box it came from. A number with no employer shows "Employer not set"; one
+  whose sources name different employers is flagged, not assigned to either.
+- Annual figures (W-2) and payslip periods are shown as separate values. A row is annual
+  if its kind of number is a W-2 box or its document is a tax form, a payslip if its
+  document is a pay stub, and otherwise just a period; never guessed. Nothing is summed,
+  so the page never makes a year total that no document states, and never converts.
+- Conflicts are marked as on the account page (D17) and link to the fact page.
+- Every value is shown in its own currency; nothing is converted (there is no household
+  base currency to compare against yet). Values without an exact amount, year or person are
+  listed under "Not shown", never dropped.
+- `GET /api/facts` accepts `person=:id`, alongside account, concept, document and status.
+
+This amends D15 (the Facts page, and where the "Conflicting values" stat links) and D17
+(the "All numbers for this account" link).
