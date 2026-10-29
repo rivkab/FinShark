@@ -581,7 +581,7 @@ export function AddAccount({
           <Field label="Opened (optional)"><DateInput value={openedOn} onChange={setOpenedOn} /></Field>
           <Field label="Closed (optional)"><DateInput value={closedOn} onChange={setClosedOn} /></Field>
           <Field label="How often it sends statements">
-            <Select value={cadence} onChange={setCadence} options={CADENCE_OPTIONS} placeholder="Not sure" />
+            <Select value={cadence} onChange={setCadence} options={CADENCE_OPTIONS} placeholder="Not set" />
           </Field>
           <Field
             label="Account number"
