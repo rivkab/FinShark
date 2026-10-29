@@ -21,6 +21,7 @@ import { AddOwner } from "./AddOwner.tsx";
 import { useActor, useRefData } from "./context.tsx";
 import { sortInstitutions } from "./institutionSort.ts";
 import { sortAccounts, type AccountSortKey, type SortDir } from "./accountSort.ts";
+import { NO_FILTERS, NO_TYPE, filterAccounts, hasFilters, type AccountFilters } from "./accountFilter.ts";
 import { coverageNote, currencyTotals, newestBalanceDate } from "./accountTotals.ts";
 import { formatDay, formatDayShort } from "./displayDate.ts";
 import { ACCOUNT_TYPE_LABEL, INSTITUTION_KIND_LABEL, currencyForCountry, languageForCountry } from "./labels.ts";
@@ -79,7 +80,13 @@ export function AccountsPage() {
   );
   const proposed = useLoad(() => apiFetch<{ facts: FactDto[] }>("/api/facts?status=proposed").then((r) => r.facts.length), 0);
   const [sort, setSort] = useState<{ key: AccountSortKey; dir: SortDir }>({ key: "name", dir: "asc" });
-  const sorted = sortAccounts(accounts, sort.key, sort.dir, people);
+  const [filters, setFilters] = useState<AccountFilters>(NO_FILTERS);
+  const setFilter = (key: keyof AccountFilters) => (value: string) => setFilters((f) => ({ ...f, [key]: value }));
+  const now = new Date();
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  const shown = filterAccounts(accounts, filters, today);
+  const sorted = sortAccounts(shown, sort.key, sort.dir, people);
+  const currencies = [...new Set(accounts.map((a) => a.nativeCurrency))].sort();
   /** Clicking the active column flips the direction; another column starts ascending. */
   const sortBy = (key: AccountSortKey) =>
     setSort((s) => (s.key === key ? { key, dir: s.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" }));
@@ -118,6 +125,51 @@ export function AccountsPage() {
         {accounts.length === 0 ? (
           <Empty>No accounts yet.{institutions.length === 0 ? " Add an institution first." : ""}</Empty>
         ) : (
+          <Stack gap={3}>
+          <FieldRow align="end">
+            <Field label="Institution">
+              <Select
+                value={filters.institutionId}
+                onChange={setFilter("institutionId")}
+                placeholder="Any"
+                options={sortInstitutions(institutions.filter((i) => accounts.some((a) => a.institutionId === i.id))).map((i) => ({ value: String(i.id), label: i.name, dir: "auto" as const }))}
+              />
+            </Field>
+            <Field label="Type">
+              <Select
+                value={filters.type}
+                onChange={setFilter("type")}
+                placeholder="Any"
+                options={[...ACCOUNT_TYPE_OPTIONS, { value: NO_TYPE, label: "Not set" }]}
+              />
+            </Field>
+            <Field label="Owner">
+              <Select
+                value={filters.ownerId}
+                onChange={setFilter("ownerId")}
+                placeholder="Any"
+                options={people.filter((p) => p.ownsAccounts).map((p) => ({ value: String(p.id), label: p.displayName, dir: "auto" as const }))}
+              />
+            </Field>
+            {currencies.length > 1 && (
+              <Field label="Currency">
+                <Select value={filters.currency} onChange={setFilter("currency")} placeholder="Any" options={currencies.map((c) => ({ value: c, label: c }))} />
+              </Field>
+            )}
+            <Field label="Status">
+              <Select
+                value={filters.status}
+                onChange={setFilter("status")}
+                placeholder="Any"
+                options={[{ value: "open", label: "Open" }, { value: "closed", label: "Closed" }]}
+              />
+            </Field>
+            {hasFilters(filters) && <Button variant="link" onClick={() => setFilters(NO_FILTERS)}>Clear filters</Button>}
+          </FieldRow>
+          {hasFilters(filters) && (
+            <Text tone="muted">Showing {shown.length} of {accounts.length} accounts. The totals above cover all accounts.</Text>
+          )}
+          {shown.length === 0 ? <Empty>No accounts match these filters.</Empty> : (
           <Table aria-label="Accounts">
             <TableHead>
               <Tr>
@@ -140,6 +192,8 @@ export function AccountsPage() {
               ))}
             </TableBody>
           </Table>
+          )}
+          </Stack>
         )}
       </Stack>
 
