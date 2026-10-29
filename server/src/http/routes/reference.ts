@@ -314,6 +314,17 @@ export function registerReferenceRoutes(app: FastifyInstance, ctx: ApiContext): 
     return loadAccounts(ctx, accountId)[0];
   });
 
+  app.put("/api/accounts/:id/cadence", async (req) => {
+    const accountId = idParam(req);
+    if (!db.prepare("SELECT 1 FROM accounts WHERE id = ?").get(accountId)) throw notFound("Account");
+    const o = jsonBody(req);
+    // null clears the cadence; anything else must be one of the allowed values.
+    const cadence = o["statementCadence"] === null ? null : optEnum(o, "statementCadence", ["monthly", "quarterly", "semiannual", "annual", "irregular"] as const);
+    if (cadence === undefined) throw badRequest("statementCadence is required (use null to clear it).");
+    db.prepare("UPDATE accounts SET statement_cadence = ? WHERE id = ?").run(cadence, accountId);
+    return loadAccounts(ctx, accountId)[0];
+  });
+
   app.put("/api/accounts/:id/name", async (req) => {
     const accountId = idParam(req);
     if (!db.prepare("SELECT 1 FROM accounts WHERE id = ?").get(accountId)) throw notFound("Account");

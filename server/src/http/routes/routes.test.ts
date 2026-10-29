@@ -465,6 +465,25 @@ describe("account types", () => {
   });
 });
 
+describe("statement cadence", () => {
+  const hdrs = () => ({ host: HOST, cookie, "x-finshark-csrf": csrf, "content-type": "application/json" });
+  it("is set, cleared and validated", async () => {
+    await choosePerson();
+    const inst = (await call("POST", "/api/institutions", { name: "Cadence Bank", country: "US" })).json();
+    const made = await call("POST", "/api/accounts", {
+      institutionId: inst.id, displayName: "Main", nativeCurrency: "USD", owners: [{ personId: 1 }],
+    });
+    expect(made.json().statementCadence).toBeNull();
+    const id = made.json().id as number;
+    const put = (body: unknown) =>
+      app.inject({ method: "PUT", url: `/api/accounts/${id}/cadence`, headers: hdrs(), payload: JSON.stringify(body) });
+    expect((await put({ statementCadence: "quarterly" })).json().statementCadence).toBe("quarterly");
+    expect((await put({ statementCadence: null })).json().statementCadence).toBeNull();
+    expect((await put({ statementCadence: "weekly" })).statusCode).toBe(400);
+    expect((await put({})).statusCode).toBe(400);
+  });
+});
+
 describe("account numbers", () => {
   beforeEach(() => {
     chosen = false;

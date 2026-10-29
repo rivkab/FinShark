@@ -22,6 +22,7 @@
 //   POST /api/accounts/:id/identifiers  AddIdentifierRequest -> 201 AccountDto
 //   PUT  /api/accounts/:id/notes           SetAccountNotesRequest -> AccountDto
 //   PUT  /api/accounts/:id/type            SetAccountTypeRequest -> AccountDto
+//   PUT  /api/accounts/:id/cadence         SetAccountCadenceRequest -> AccountDto
 //   PUT  /api/accounts/:id/name            SetAccountNameRequest -> AccountDto
 //   PUT  /api/accounts/:id/account-number  SetAccountNumberRequest -> AccountDto
 //   PUT  /api/accounts/:id/owners           SetAccountOwnersRequest -> AccountDto
@@ -231,6 +232,10 @@ export interface SetAccountTypeRequest {
   accountType: AccountType | null;
 }
 /** null clears the number. The previous number is kept as history. */
+/** null clears the cadence. */
+export interface SetAccountCadenceRequest {
+  statementCadence: "monthly" | "quarterly" | "semiannual" | "annual" | "irregular" | null;
+}
 export interface SetAccountNumberRequest {
   accountNumber: string | null;
 }

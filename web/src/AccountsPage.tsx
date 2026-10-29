@@ -11,6 +11,7 @@ import type {
   SetAccountNameRequest,
   SetAccountNotesRequest,
   SetAccountNumberRequest,
+  SetAccountCadenceRequest,
   SetAccountTypeRequest,
   SetAccountOwnersRequest,
 } from "@finshark/shared";
@@ -234,6 +235,7 @@ function AccountRow({ account: a, docCount, balance }: { account: AccountDto; do
   const [number, setNumber] = useState("");
   const [name, setName] = useState("");
   const [type, setType] = useState("");
+  const [cadence, setCadence] = useState("");
   const [notes, setNotes] = useState("");
   const [altName, setAltName] = useState("");
 
@@ -242,6 +244,7 @@ function AccountRow({ account: a, docCount, balance }: { account: AccountDto; do
     setNumber(a.accountNumber ?? "");
     setName(a.displayName);
     setType(a.accountType ?? "");
+    setCadence(a.statementCadence ?? "");
     setNotes(a.notes ?? "");
     setAltName(a.altName ?? "");
     setError(null);
@@ -262,6 +265,12 @@ function AccountRow({ account: a, docCount, balance }: { account: AccountDto; do
     if (type !== (a.accountType ?? "")) {
       const body: SetAccountTypeRequest = { accountType: type === "" ? null : (type as AccountType) };
       await mutate(() => apiFetch<AccountDto>(`/api/accounts/${a.id}/type`, { method: "PUT", body }));
+    }
+    if (cadence !== (a.statementCadence ?? "")) {
+      const body: SetAccountCadenceRequest = {
+        statementCadence: cadence === "" ? null : (cadence as NonNullable<SetAccountCadenceRequest["statementCadence"]>),
+      };
+      await mutate(() => apiFetch<AccountDto>(`/api/accounts/${a.id}/cadence`, { method: "PUT", body }));
     }
     const newNotes = notes.trim() === "" ? null : notes.trim();
     if (newNotes !== a.notes) {
@@ -336,6 +345,11 @@ function AccountRow({ account: a, docCount, balance }: { account: AccountDto; do
                     hint={a.accountNumber ? "The old number is kept in the account's history." : undefined}
                   >
                     <TextInput dir="ltr" value={number} onChange={setNumber} />
+                  </Field>
+                </FieldRow>
+                <FieldRow>
+                  <Field label="Statement frequency" hint="Used to check that no statement is missing.">
+                    <Select value={cadence} onChange={setCadence} options={CADENCE_OPTIONS} placeholder="Not set" />
                   </Field>
                 </FieldRow>
                 <OwnerPicker selected={selected} onChange={setSelected} />
