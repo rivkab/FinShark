@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { hrefAccount, hrefDocument, hrefDocuments, hrefFacts, parseHash } from "./route.ts";
+import { hrefFbar, hrefAccount, hrefDocument, hrefDocuments, hrefFacts, parseHash } from "./route.ts";
 
 describe("parseHash", () => {
   it("reads an account filter on the documents list", () => {
@@ -32,6 +32,11 @@ describe("parseHash", () => {
     // There is no People page (DESIGN D16); an old bookmark lands on the default page.
     expect(parseHash("#/people")).toEqual({ page: "accounts" });
     expect(parseHash("#/rates")).toEqual({ page: "rates" });
+    expect(parseHash("#/fbar")).toEqual({ page: "fbar", year: null });
+    expect(parseHash("#/fbar?year=2025")).toEqual({ page: "fbar", year: 2025 });
+    expect(parseHash("#/fbar?year=abc")).toEqual({ page: "fbar", year: null });
+    expect(hrefFbar(2025)).toBe("#/fbar?year=2025");
+    expect(hrefFbar()).toBe("#/fbar");
     expect(parseHash("#/demo")).toEqual({ page: "demo" });
     expect(parseHash("#/design")).toEqual({ page: "design" });
   });

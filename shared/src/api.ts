@@ -50,6 +50,7 @@
 //   POST /api/exchange-rates/import  raw text/csv body (US Treasury Reporting Rates of Exchange),
 //                             optional query: note            -> 201 ImportRatesResponse
 //   GET  /api/exchange-rates                 -> { rates: ExchangeRateDto[] }
+//   GET  /api/fbar?year=YYYY                 -> FbarReportDto   (year defaults to the previous calendar year)
 //   GET  /api/session / POST /api/session/person         (see server/src/http/app.ts)
 
 import type { PdfRect } from "./pdf-geometry.ts";
@@ -231,11 +232,11 @@ export interface SetAccountNotesRequest {
 export interface SetAccountTypeRequest {
   accountType: AccountType | null;
 }
-/** null clears the number. The previous number is kept as history. */
 /** null clears the cadence. */
 export interface SetAccountCadenceRequest {
   statementCadence: "monthly" | "quarterly" | "semiannual" | "annual" | "irregular" | null;
 }
+/** null clears the number. The previous number is kept as history. */
 export interface SetAccountNumberRequest {
   accountNumber: string | null;
 }
@@ -497,4 +498,57 @@ export interface ImportRatesResponse {
   conflicts: { quote: string; rateDate: string; stored: string; incoming: string }[];
   /** Rows for currencies the app does not support yet. */
   skippedCurrencies: number;
+}
+
+// ---------------------------------------------------------------- FBAR report (DESIGN D18)
+
+export interface MoneyDto {
+  /** Integer minor units as a decimal string. */
+  minor: string;
+  currency: string;
+  formatted: string;
+}
+
+export type FbarStatus = "COMPLETE" | "INCOMPLETE" | "CONFLICT";
+export type FbarTestVerdict = "EXCEEDED" | "NOT_EXCEEDED" | "UNDETERMINED";
+export type FbarVerdict = "REQUIRED" | "NOT_REQUIRED" | "DEPENDS_ON_RULE" | "UNDETERMINED" | "NO_FOREIGN_ACCOUNTS";
+
+export interface FbarRowDto {
+  accountId: number;
+  displayName: string;
+  country: string;
+  currency: string;
+  status: FbarStatus;
+  /** The highest verified period-end balance in the year (an approximation of the true peak). */
+  max: { amount: MoneyDto; date: string; factIds: number[] } | null;
+  /** `max` in USD at the 31 December rate; null when there is no maximum or no rate. */
+  usd: MoneyDto | null;
+  conversion: { kind: "none" } | { kind: "rate"; rate: string; rateDate: string } | { kind: "missing_rate"; currency: string } | null;
+  /** False when the account's statement cadence is unset or irregular, so missing dates cannot be listed. */
+  coverageKnown: boolean;
+  /** Dates a statement should have given a balance for, but none is recorded. */
+  missing: string[];
+  conflicts: { date: string; values: { amount: MoneyDto; factIds: number[] }[] }[];
+  excluded: { factId: number; date: string; reason: "unverified" | "other_currency" | "no_amount" }[];
+  /** Every verified fact the maximum was chosen from. */
+  factIds: number[];
+}
+
+export interface FbarReportDto {
+  year: number;
+  status: FbarStatus;
+  verdict: FbarVerdict;
+  threshold: MoneyDto;
+  /** Sum of the known USD maxima; a lower bound unless `status` is COMPLETE. */
+  knownAggregate: MoneyDto;
+  rows: FbarRowDto[];
+  notInScope: { accountId: number; displayName: string; reason: "opened_after_year" | "closed_before_year" }[];
+  tests: {
+    sumOfMaxima: FbarTestVerdict;
+    singleDate: {
+      verdict: FbarTestVerdict;
+      exceededOn: string | null;
+      dates: { date: string; usd: MoneyDto; missingAccountIds: number[] }[];
+    };
+  };
 }

@@ -3,6 +3,7 @@ import type { FastifyInstance } from "fastify";
 import { MUTATING_METHODS, requestPath } from "../security.ts";
 import { apiErrorHandler, actorId, type ApiContext } from "./common.ts";
 import { registerDocumentRoutes } from "./documents.ts";
+import { registerFbarRoutes } from "./fbar.ts";
 import { registerFactRoutes } from "./facts.ts";
 import { registerRateRoutes } from "./rates.ts";
 import { registerReferenceRoutes } from "./reference.ts";
@@ -25,4 +26,5 @@ export function registerApiRoutes(app: FastifyInstance, ctx: ApiContext): void {
   registerDocumentRoutes(app, ctx);
   registerFactRoutes(app, ctx);
   registerRateRoutes(app, ctx);
+  registerFbarRoutes(app, ctx);
 }

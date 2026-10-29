@@ -661,3 +661,26 @@ describe("exchange rates", () => {
     expect(bad.json().message).toMatch(/Missing column/);
   });
 });
+
+describe("fbar", () => {
+  it("returns a report with strings for money, defaults to the previous year, and validates the year", async () => {
+    const r = await call("GET", "/api/fbar");
+    expect(r.statusCode).toBe(200);
+    expect(r.json()).toMatchObject({ year: 2025, verdict: "NO_FOREIGN_ACCOUNTS", rows: [], threshold: { minor: "1000000", formatted: "$10,000.00" } });
+    expect((await call("GET", "/api/fbar?year=2024")).json().year).toBe(2024);
+    for (const bad of ["abc", "99", "1999", "20250"]) expect((await call("GET", `/api/fbar?year=${bad}`)).statusCode).toBe(400);
+  });
+
+  it("lists a foreign account with nothing recorded as incomplete, never as clear", async () => {
+    const personId = await choosePerson();
+    const inst = (await call("POST", "/api/institutions", { name: "Bank Example", country: "IL" })).json();
+    const acct = (
+      await call("POST", "/api/accounts", { institutionId: inst.id, displayName: "Savings", nativeCurrency: "ILS", accountNumber: "1234", owners: [{ personId, role: "owner" }] })
+    ).json();
+    expect(acct.id).toBeDefined();
+    const r = (await call("GET", "/api/fbar?year=2025")).json();
+    expect(r.verdict).toBe("UNDETERMINED");
+    expect(r.status).toBe("INCOMPLETE");
+    expect(r.rows[0]).toMatchObject({ accountId: acct.id, max: null, usd: null, coverageKnown: false });
+  });
+});
