@@ -8,6 +8,7 @@ export type Route =
   | { page: "accounts" }
   | { page: "account"; id: number }
   | { page: "rates" }
+  | { page: "fbar"; year: number | null }
   | { page: "demo" }
   | { page: "design" };
 
@@ -46,6 +47,10 @@ export function parseHash(hash: string): Route {
     }
     case "accounts":
       return second !== undefined && ID.test(second) ? { page: "account", id: Number(second) } : { page: "accounts" };
+    case "fbar": {
+      const y = q.get("year");
+      return { page: "fbar", year: y !== null && /^\d{4}$/.test(y) ? Number(y) : null };
+    }
     case "rates":
       return { page: "rates" };
     case "demo":
@@ -66,3 +71,4 @@ export const hrefFacts = (filters: Record<string, string> = {}): string => {
   return `#/facts${s ? `?${s}` : ""}`;
 };
 export const hrefAccount = (id: number): string => `#/accounts/${id}`;
+export const hrefFbar = (year?: number | null): string => (year ? `#/fbar?year=${year}` : "#/fbar");

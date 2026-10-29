@@ -1124,8 +1124,20 @@ FBAR (FinCEN 114) goes first because it needs the fewest concepts: one number pe
 account, per calendar year.
 
 - **Question to answer:** for each foreign financial account, its maximum value during the
-  calendar year, converted to USD, plus whether the aggregate of all foreign accounts
-  exceeded $10,000 at any time.
+  calendar year, converted to USD, and whether the accounts exceeded $10,000.
+- **The threshold is worded two ways, so both tests are run and shown.** The FBAR instructions
+  are read as summing each account's own maximum (the peaks may fall on different dates); the
+  IRS Form 8938 / FBAR comparison page says the accounts' combined balance must exceed $10,000
+  "at any one time". The report shows both:
+  - *Sum of maxima:* exceeded / not exceeded / undetermined.
+  - *Single date:* the combined USD balance on each date where at least one account has a
+    balance, and the earliest date on which the known balances already exceed the threshold.
+    It is "not exceeded" only if every account's balance is known on every date tested; a
+    balance is never carried forward from another date.
+  - *Verdict:* REQUIRED if one date exceeds it (true under either reading); NOT_REQUIRED if even
+    the sum of maxima does not; DEPENDS_ON_RULE if only the sum of maxima exceeds it, which
+    needs a human decision (FBAR instructions or a preparer); otherwise UNDETERMINED.
+  - Known balances are assumed not to be negative, so a known partial total is a lower bound.
 - **Rate source:** US Treasury reporting rate for 31 December (C7, §5). Treasury rates are
   quarterly, so the rate source must be imported data with provenance.
 - **Republished rates:** Treasury sometimes republishes a quarter-end rate mid-quarter (same
