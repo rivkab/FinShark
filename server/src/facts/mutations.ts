@@ -209,18 +209,28 @@ export function createAttestation(deps: FactDeps, actorId: number | null | undef
 
 // ---------------------------------------------------------------- verify
 
-/** Must run inside a transaction. Throws ConflictSignal when a verified fact disagrees. */
-function verifyInTransaction(db: DatabaseSync, factId: number, at: string, actor: number): number[] {
+/**
+ * Must run inside a transaction. Throws ConflictSignal when a verified fact disagrees, unless every
+ * disagreeing fact is listed in `replace`: those are then deleted (rejected) with a reason naming
+ * this fact, and this one is verified in their place.
+ */
+function verifyInTransaction(db: DatabaseSync, factId: number, at: string, actor: number, replace: readonly number[] = []): number[] {
   const view = requireFactView(db, factId);
   if (view.fact.status !== "proposed") {
     throw new FactError("bad_state", `Only a proposed fact can be verified (fact ${factId} is ${view.fact.status}).`);
   }
   const inSlot = findVerifiedInSlot(db, view.fact);
   const conflicting = inSlot.filter((v) => !sameValue(v.fact, view.fact));
-  if (conflicting.length > 0) throw new ConflictSignal({ factId, conflictingWith: conflicting });
-  const corroboratedBy = inSlot.map((v) => v.fact.id);
+  // Replacing is all or nothing: if a conflicting fact was not named (e.g. one verified meanwhile), report it.
+  if (conflicting.some((v) => !replace.includes(v.fact.id))) throw new ConflictSignal({ factId, conflictingWith: conflicting });
+  for (const c of conflicting) {
+    setStatus(db, c.fact.id, "rejected");
+    addEvent(db, c.fact.id, at, actor, "rejected", { reason: `Replaced by #${factId}`, previousStatus: "verified", replacedBy: factId });
+  }
+  const corroboratedBy = inSlot.filter((v) => sameValue(v.fact, view.fact)).map((v) => v.fact.id);
+  const replaced = conflicting.map((v) => v.fact.id);
   setStatus(db, factId, "verified", { at, by: actor });
-  addEvent(db, factId, at, actor, "verified", { corroboratedBy });
+  addEvent(db, factId, at, actor, "verified", replaced.length > 0 ? { corroboratedBy, replaced } : { corroboratedBy });
   return corroboratedBy;
 }
 
@@ -228,12 +238,20 @@ function verifyInTransaction(db: DatabaseSync, factId: number, at: string, actor
  * proposed -> verified. If another verified fact occupies the same slot (concept, account, person,
  * date/period, dimensions) with a different value, nothing changes and the conflict is returned
  * (DESIGN §4.5: no silent choice). The same value is corroboration and allowed.
+ *
+ * `replace` is the person's explicit choice after seeing a conflict: the listed verified facts are
+ * deleted (rejected, reason "Replaced by #id", reopenable) and this fact is verified instead.
  */
-export function verifyFact(deps: FactDeps, actorId: number | null | undefined, factId: number): VerifyResult {
+export function verifyFact(
+  deps: FactDeps,
+  actorId: number | null | undefined,
+  factId: number,
+  opts: { replace?: readonly number[] | undefined } = {},
+): VerifyResult {
   const actor = requireActor(actorId);
   const at = deps.now().toISOString();
   try {
-    const corroboratedBy = inTransaction(deps.db, () => verifyInTransaction(deps.db, factId, at, actor));
+    const corroboratedBy = inTransaction(deps.db, () => verifyInTransaction(deps.db, factId, at, actor, opts.replace));
     return { ok: true, view: requireFactView(deps.db, factId), corroboratedBy };
   } catch (e) {
     if (e instanceof ConflictSignal) return { ok: false, conflict: e.conflict };

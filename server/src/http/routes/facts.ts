@@ -23,6 +23,7 @@ import {
   nullableStr,
   optInt,
   optStr,
+  optionalJsonBody,
   reqInt,
   reqStr,
   type ApiContext,
@@ -156,7 +157,13 @@ export function registerFactRoutes(app: FastifyInstance, ctx: ApiContext): void 
   });
 
   app.post("/api/facts/:id/verify", async (req) => {
-    const r = verifyFact(deps, actorId(req), idParam(req));
+    const actor = actorId(req);
+    const o = optionalJsonBody(req);
+    const replace = o["replace"];
+    if (replace !== undefined && !(Array.isArray(replace) && replace.every((n) => Number.isSafeInteger(n) && (n as number) > 0))) {
+      throw badRequest("replace must be a list of fact ids.");
+    }
+    const r = verifyFact(deps, actor, idParam(req), { replace: replace as number[] | undefined });
     if (!r.ok) throw conflictError(r.conflict);
     return { fact: factToDto(r.view), corroboratedBy: r.corroboratedBy };
   });

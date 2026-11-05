@@ -993,6 +993,12 @@ unchanged. The Review queue page, its route and its keyboard shortcuts were remo
 If a different value is already verified for the same slot, verification returns the
 usual 409 conflict. The fact stays `proposed`, the add panel says so and links to it,
 and the fact page offers Verify (retry), Correct, and Reopen for rejected facts.
+Both places then show the conflicting values and ask which one is right. "Use the new
+value" calls `POST /api/facts/:id/verify` with `{ "replace": [ids] }`: in one transaction
+the listed verified facts are rejected (reason "Replaced by #id") and this one is verified.
+The server refuses with the usual 409 unless every conflicting fact is listed, so nothing
+verified meanwhile is replaced unseen. "Keep the old value" rejects the new fact instead.
+Either way the loser stays in the history and can be reopened.
 The fact page's "Delete this number" button rejects a proposed or verified fact with a required reason; facts are never physically deleted, and a rejected fact can be reopened.
 Queries still exclude unverified facts by default, so a conflicted fact is surfaced,
 not silently used.

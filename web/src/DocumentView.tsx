@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { DocumentDetailDto, DocumentDto, FactDto, Language, PdfRect, ProposeFactResponse, UpdateDocumentRequest } from "@finshark/shared";
 import { ApiError, apiFetch, errorText } from "./api.ts";
+import { ConflictChoice } from "./ConflictChoice.tsx";
 import { useActor, useRefData } from "./context.tsx";
 import { FactFormFields } from "./FactFields.tsx";
 import { applyConceptChange, buildProposeRequest, emptyFactForm, isMoney, mismatchWarning, validateFactForm, type FactFormState } from "./factForm.ts";
@@ -245,11 +246,17 @@ export function DocumentView({ id, factId }: { id: number; factId: number | null
                   {added && (
                     <Stack gap={2}>
                       {conflictWith ? (
-                        <Alert tone="warning">
-                          Saved <FactAmount fact={added.fact} /> (<FactConcept fact={added.fact} />) but it conflicts: a different value is already verified for the
-                          same kind of number, account, person and date ({conflictWith.map((c, i) => <Text key={c.id}>{i > 0 && ", "}<Link href={hrefFact(c.id)}>#{c.id}</Link></Text>)}).{" "}
-                          <Link href={hrefFact(added.fact.id)}>Open it</Link> to correct or compare.
-                        </Alert>
+                        <ConflictChoice
+                          key={added.fact.id}
+                          fact={added.fact}
+                          conflicts={conflictWith}
+                          onDone={async (outcome) => {
+                            setConflictWith(null);
+                            if (outcome === "kept") setAdded(null);
+                            else setAdded((a) => (a ? { ...a, fact: { ...a.fact, status: "verified" } } : a));
+                            await Promise.all([facts.reload(), detail.reload(), allDocs.reload()]);
+                          }}
+                        />
                       ) : (
                         <Alert tone="success">Added <FactAmount fact={added.fact} /> (<FactConcept fact={added.fact} />).</Alert>
                       )}
