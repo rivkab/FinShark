@@ -1235,6 +1235,16 @@ of the format.
 
 Until setup is done, every page shows a warning that the vault has no backups.
 
+**Using the key on another Mac.** The Keychain is local to each Mac. A key saved by a
+command-line tool does not sync through iCloud Keychain, which needs a signed app. On a
+second or new Mac the app still runs and still makes backups, since that needs only the
+public key, but it cannot verify them. The Backups page therefore offers "Use this vault's
+key on this Mac": enter the `vault-key.age` passphrase or paste the key from the recovery
+sheet. The key is accepted only if it matches the public key stored in the vault
+(`recipientOf`), and is then saved to this Mac's Keychain. When the vault has a public key
+but this Mac has no private key, the page says so and links to this step. It does not show
+the warnings for unverified backups as if something were broken.
+
 **Where backups go.** Always into the vault's `backups/` folder, which protects against
 mistakes and corruption but not against losing the disk. A second folder can be chosen
 (an external drive, or a folder that another app syncs; FinShark itself never uploads
@@ -1279,8 +1289,10 @@ already does.
 that returns the private key, and it does so once. All of these sit behind the existing
 localhost security (§9). The scheduler takes the clock as an input, so it can be tested.
 
-**Open choices:**
+**Decided (2026-11-05):**
 
-- The second folder: an external drive, a synced folder, or none for now?
-- Whether "10 minutes after the last change" is the right trigger, or only on start and
-  on demand.
+- The second folder is a synced folder (e.g. iCloud Drive or Dropbox), so a copy leaves
+  the Mac without anyone remembering to do it. The files are encrypted before they get
+  there, and FinShark never uploads anything itself. An external drive can be added later.
+- The "10 minutes after the last change" trigger stays, because the app is often left
+  running for days and "on start" alone could leave a lot of work without a backup.
