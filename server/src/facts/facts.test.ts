@@ -280,6 +280,36 @@ describe("verifyFact", () => {
     expect(verifyFact(deps, actor, ils.fact.id).ok).toBe(false);
   });
 
+  it("replaces the conflicting verified fact when asked, in one step", async () => {
+    const a = await proposeManualFact(deps, actor, balance());
+    verifyFact(deps, actor, a.fact.id);
+    const b = await proposeManualFact(deps, actor, balance({ value: "$83,000.00" }));
+    const r = verifyFact(deps, actor, b.fact.id, { replace: [a.fact.id] });
+    expect(r.ok).toBe(true);
+    const old = getFactWithHistory(v.vault.db, a.fact.id);
+    expect(old.view.fact.status).toBe("rejected");
+    expect(old.events.at(-1)).toMatchObject({ event: "rejected", payload: { reason: `Replaced by #${b.fact.id}`, replacedBy: b.fact.id } });
+    const now = getFactWithHistory(v.vault.db, b.fact.id);
+    expect(now.view.fact.status).toBe("verified");
+    expect(now.events.at(-1)).toMatchObject({ event: "verified", payload: { replaced: [a.fact.id] } });
+    // The old one can be reopened; it is then in conflict itself.
+    reopenFact(deps, actor, a.fact.id);
+    expect(verifyFact(deps, actor, a.fact.id).ok).toBe(false);
+  });
+
+  it("does not replace unless every conflicting fact is named", async () => {
+    const a = await proposeManualFact(deps, actor, balance());
+    verifyFact(deps, actor, a.fact.id);
+    const a2 = await proposeManualFact(deps, actor, balance({ value: "$1.00", dimensions: { copy: "B" } }));
+    verifyFact(deps, actor, a2.fact.id);
+    const b = await proposeManualFact(deps, actor, balance({ value: "$83,000.00" }));
+    const unrelated = verifyFact(deps, actor, b.fact.id, { replace: [a2.fact.id] });
+    expect(unrelated.ok).toBe(false);
+    expect(getFactWithHistory(v.vault.db, a.fact.id).view.fact.status).toBe("verified");
+    expect(getFactWithHistory(v.vault.db, a2.fact.id).view.fact.status).toBe("verified");
+    expect(getFactWithHistory(v.vault.db, b.fact.id).view.fact.status).toBe("proposed");
+  });
+
   it("a rejected or superseded fact does not block", async () => {
     const a = await proposeManualFact(deps, actor, balance());
     verifyFact(deps, actor, a.fact.id);

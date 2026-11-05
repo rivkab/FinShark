@@ -6,6 +6,7 @@ import { hrefDocument, hrefFact } from "./route.ts";
 import { factDateLabel } from "./suggest.ts";
 import { AccountName, FactAmount, FactConcept, StatusBadge, useAction, useLoad } from "./ui.tsx";
 import { FactFormFields } from "./FactFields.tsx";
+import { ConflictChoice } from "./ConflictChoice.tsx";
 import { buildCorrectRequest, formFromFact, mismatchWarning, validateFactForm, type FactFormState } from "./factForm.ts";
 import {
   Alert,
@@ -49,6 +50,8 @@ export function FactHistory({ id }: { id: number }) {
   const detail = useLoad(() => apiFetch<FactDetailDto>(`/api/facts/${id}`), id);
   const [form, setForm] = useState<FactFormState | null>(null);
   const [deleteReason, setDeleteReason] = useState<string | null>(null);
+  // Verified facts that block verifying this one, once Verify has hit a conflict.
+  const [conflicts, setConflicts] = useState<FactDto[] | null>(null);
   // One action at a time: its busy flag disables every button, its error shows below.
   const act = useAction((job: () => Promise<unknown>) => job());
 
@@ -77,16 +80,18 @@ export function FactHistory({ id }: { id: number }) {
   };
   const verify = async () => {
     if (act.busy) return;
+    let found: FactDto[] | null = null;
     const ok = await act.run(async () => {
       try {
         await mutate(() => apiFetch(`/api/facts/${id}/verify`, { method: "POST", body: {} }));
       } catch (e) {
-        throw e instanceof ApiError && e.conflicts
-          ? new Error("Still conflicts: a different value is already verified for the same kind of number, account, person and date.")
-          : e;
+        // A conflict is not an error to show: it is a choice to make (ConflictChoice below).
+        if (e instanceof ApiError && e.conflicts) found = e.conflicts;
+        else throw e;
       }
     });
-    if (ok) await detail.reload();
+    setConflicts(found);
+    if (ok && !found) await detail.reload();
   };
   const submitCorrection = async (verify: boolean) => {
     if (!form || act.busy) return;
@@ -109,7 +114,7 @@ export function FactHistory({ id }: { id: number }) {
   const actions = (
     <>
       <StatusBadge status={f.status} />
-      {f.status === "proposed" && !form && <Button variant="primary" busy={act.busy} onClick={() => void verify()}>Verify</Button>}
+      {f.status === "proposed" && !form && !conflicts && <Button variant="primary" busy={act.busy} onClick={() => void verify()}>Verify</Button>}
       {editable && !form && (
         <Button onClick={() => { act.setError(null); setForm(formFromFact(f)); }}>Correct this number</Button>
       )}
@@ -138,6 +143,17 @@ export function FactHistory({ id }: { id: number }) {
             {warning && <Alert tone="warning">{warning}</Alert>}
           </Stack>
         </Panel>
+        {conflicts && f.status === "proposed" && !form && deleteReason === null && (
+          <ConflictChoice
+            key={conflicts.map((c) => c.id).join()}
+            fact={f}
+            conflicts={conflicts}
+            onDone={async () => {
+              setConflicts(null);
+              await detail.reload();
+            }}
+          />
+        )}
         {deleteReason !== null && (
           <Panel title="Delete this number">
             <Form onSubmit={() => void remove()}>

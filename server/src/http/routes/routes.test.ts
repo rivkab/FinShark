@@ -244,6 +244,9 @@ describe("full flow", () => {
     expect(conflict.statusCode).toBe(409);
     expect(conflict.json()).toMatchObject({ error: "conflict", details: { conflicts: [{ id: pr.fact.id }] } });
 
+    expect((await call("POST", `/api/facts/${other.fact.id}/verify`, { replace: "x" })).statusCode).toBe(400);
+    expect((await call("POST", `/api/facts/${other.fact.id}/verify`, { replace: [] })).statusCode).toBe(409);
+
     const corrected = await call("POST", `/api/facts/${other.fact.id}/correct`, { value: "$83,421.17", verify: true });
     expect(corrected.statusCode).toBe(201);
     expect(corrected.json()).toMatchObject({ fact: { status: "verified", origin: "user_correction", supersedesFactId: other.fact.id }, superseded: { status: "superseded" }, corroboratedBy: [pr.fact.id] });
