@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { apiFetch, errorText } from "./api.ts";
+import { api, errorText } from "./api.ts";
 import { balanceRows, compactAmount, pointDetail, pointHref } from "./accountChart.ts";
 import { balanceSeries } from "./balanceSeries.ts";
 import { useRefData } from "./context.tsx";
@@ -9,7 +9,6 @@ import { latestBalances } from "./latestBalance.ts";
 import { otherNumbers } from "./otherNumbers.ts";
 import { hrefFact, hrefDocuments } from "./route.ts";
 import { AccountName, FactConcept, InstitutionName, useLoad } from "./ui.tsx";
-import type { FactDto } from "@finshark/shared";
 import {
   Alert,
   DataText,
@@ -36,7 +35,7 @@ import {
 export function AccountPage({ id }: { id: number }) {
   const { accounts, concepts, institutions } = useRefData();
   const account = accounts.find((a) => a.id === id);
-  const facts = useLoad(() => apiFetch<{ facts: FactDto[] }>(`/api/facts?account=${id}`).then((r) => r.facts), id);
+  const facts = useLoad(() => api.facts.list({ account: id }), id);
 
   const series = useMemo(
     () => (account && facts.data ? balanceSeries(account, facts.data, concepts) : null),

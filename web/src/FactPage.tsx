@@ -1,6 +1,6 @@
 import { useState } from "react";
-import type { DocumentDto, FactDetailDto, FactDto, FactEventDto } from "@finshark/shared";
-import { ApiError, apiFetch } from "./api.ts";
+import type { DocumentDto, FactDto, FactEventDto } from "@finshark/shared";
+import { api, ApiError } from "./api.ts";
 import { useActor, useRefData } from "./context.tsx";
 import { hrefDocument, hrefFact } from "./route.ts";
 import { factDateLabel } from "./suggest.ts";
@@ -47,7 +47,7 @@ import {
 export function FactHistory({ id }: { id: number }) {
   const { mutate } = useActor();
   const { people, concepts, accounts } = useRefData();
-  const detail = useLoad(() => apiFetch<FactDetailDto>(`/api/facts/${id}`), id);
+  const detail = useLoad(() => api.facts.get(id), id);
   const [form, setForm] = useState<FactFormState | null>(null);
   const [deleteReason, setDeleteReason] = useState<string | null>(null);
   // Verified facts that block verifying this one, once Verify has hit a conflict.
@@ -68,12 +68,12 @@ export function FactHistory({ id }: { id: number }) {
   const warning = mismatchWarning(f.valueMatchesSource, f.sources[0]?.quotedText ?? null);
 
   const reopen = async () => {
-    if (await act.run(() => mutate(() => apiFetch(`/api/facts/${id}/reopen`, { method: "POST", body: {} })))) await detail.reload();
+    if (await act.run(() => mutate(() => api.facts.reopen(id)))) await detail.reload();
   };
   const remove = async () => {
     if (act.busy || deleteReason === null) return;
     if (deleteReason.trim() === "") return act.setError("Say why this number is being deleted.");
-    const ok = await act.run(() => mutate(() => apiFetch(`/api/facts/${id}/reject`, { method: "POST", body: { reason: deleteReason.trim() } })));
+    const ok = await act.run(() => mutate(() => api.facts.reject(id, deleteReason.trim())));
     if (!ok) return;
     setDeleteReason(null);
     await detail.reload();
@@ -83,7 +83,7 @@ export function FactHistory({ id }: { id: number }) {
     let found: FactDto[] | null = null;
     const ok = await act.run(async () => {
       try {
-        await mutate(() => apiFetch(`/api/facts/${id}/verify`, { method: "POST", body: {} }));
+        await mutate(() => api.facts.verify(id));
       } catch (e) {
         // A conflict is not an error to show: it is a choice to make (ConflictChoice below).
         if (e instanceof ApiError && e.conflicts) found = e.conflicts;
@@ -100,9 +100,7 @@ export function FactHistory({ id }: { id: number }) {
     if (errs.length || !concept) return act.setError(errs.join(" "));
     let created: FactDto | null = null;
     const ok = await act.run(async () => {
-      created = (
-        await mutate(() => apiFetch<{ fact: FactDto }>(`/api/facts/${id}/correct`, { method: "POST", body: buildCorrectRequest(form, concept, verify) }))
-      ).fact;
+      created = await mutate(() => api.facts.correct(id, buildCorrectRequest(form, concept, verify)));
     });
     if (!ok || !created) return;
     setForm(null);

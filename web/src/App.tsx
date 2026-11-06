@@ -3,7 +3,7 @@ import type { PersonDto } from "@finshark/shared";
 import { AccountPage } from "./AccountPage.tsx";
 import { AccountsPage } from "./AccountsPage.tsx";
 import { BackupsPage } from "./BackupsPage.tsx";
-import { apiFetch, errorText, fetchSession, setActingPerson } from "./api.ts";
+import { api, errorText } from "./api.ts";
 import { ActorProvider, RefDataProvider } from "./context.tsx";
 import { DemoPage } from "./DemoPage.tsx";
 import { DesignPage } from "./DesignPage.tsx";
@@ -16,7 +16,6 @@ import { RatesPage } from "./RatesPage.tsx";
 import { hrefBackups, parseHash, type Route } from "./route.ts";
 import { useAction, useLoad } from "./ui.tsx";
 import { WhoIsUsing } from "./WhoIsUsing.tsx";
-import type { BackupStatusDto, DocumentDto } from "@finshark/shared";
 import {
   Alert,
   AppHeader,
@@ -66,14 +65,14 @@ export function App() {
   const [error, setError] = useState<string | null>(null);
 
   const reloadPeople = async () => {
-    setPeople((await apiFetch<{ people: PersonDto[] }>("/api/people")).people);
+    setPeople(await api.people.list());
   };
 
   useEffect(() => {
-    fetchSession().then(
+    api.session.get().then(
       async (s) => {
         try {
-          setPeople((await apiFetch<{ people: PersonDto[] }>("/api/people")).people);
+          setPeople(await api.people.list());
           setPersonId(s.personId);
         } catch (e) {
           setError(errorText(e));
@@ -95,7 +94,7 @@ export function App() {
         onChanged={reloadPeople}
         onChosen={async (p) => {
           try {
-            await setActingPerson(String(p.id));
+            await api.session.setPerson(String(p.id));
           } catch {
             throw new Error("Could not save your choice.");
           }
@@ -122,7 +121,7 @@ function SetupPeople({ onDone }: { onDone: (p: PersonDto[]) => void }) {
   const [name, setName] = useState("");
 
   const add = useAction(async () => {
-    const p = await apiFetch<PersonDto>("/api/people", { method: "POST", body: { displayName: name.trim() } });
+    const p = await api.people.create({ displayName: name.trim() });
     setAdded([...added, p]);
     setName("");
   });
@@ -163,10 +162,10 @@ function Shell({
   const route = useRoute();
   const person = people.find((p) => String(p.id) === personId);
   // Keyed on the route so the inbox count refreshes as you move around.
-  const docs = useLoad(() => apiFetch<{ documents: DocumentDto[] }>("/api/documents").then((r) => r.documents), route);
+  const docs = useLoad(() => api.documents.list(), route);
   const inbox = docs.data?.filter((d) => d.status === "inbox").length ?? 0;
   // Backup problems are shown on every page (DESIGN D20); the Backups page shows them itself.
-  const backups = useLoad(() => apiFetch<BackupStatusDto>("/api/backups"), route);
+  const backups = useLoad(() => api.backups.status(), route);
   const backupWarnings = route.page === "backups" ? [] : (backups.data?.warnings ?? []);
 
   const items = NAV.map((n) => ({

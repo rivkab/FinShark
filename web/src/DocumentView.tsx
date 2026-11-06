@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { DocumentDetailDto, DocumentDto, FactDto, Language, PdfRect, ProposeFactResponse, UpdateDocumentRequest } from "@finshark/shared";
-import { ApiError, apiFetch, errorText } from "./api.ts";
+import { api, ApiError, errorText } from "./api.ts";
 import { ConflictChoice } from "./ConflictChoice.tsx";
 import { useActor, useRefData } from "./context.tsx";
 import { FactFormFields } from "./FactFields.tsx";
@@ -24,9 +24,9 @@ interface FocusTarget {
 export function DocumentView({ id, factId }: { id: number; factId: number | null }) {
   const { concepts, accounts, institutions } = useRefData();
   const { mutate } = useActor();
-  const detail = useLoad(() => apiFetch<DocumentDetailDto>(`/api/documents/${id}`), id);
-  const facts = useLoad(() => apiFetch<{ facts: FactDto[] }>(`/api/facts?document=${id}`).then((r) => r.facts), id);
-  const allDocs = useLoad(() => apiFetch<{ documents: DocumentDto[] }>("/api/documents").then((r) => r.documents), id);
+  const detail = useLoad(() => api.documents.get(id), id);
+  const facts = useLoad(() => api.facts.list({ document: id }), id);
+  const allDocs = useLoad(() => api.documents.list(), id);
 
   const [focusedFactId, setFocusedFactId] = useState<number | null>(factId);
   const [focusNonce, setFocusNonce] = useState(0);
@@ -112,7 +112,7 @@ export function DocumentView({ id, factId }: { id: number; factId: number | null
     [doc, allDocs.data],
   );
   const prevFacts = useLoad(
-    () => (previous ? apiFetch<{ facts: FactDto[] }>(`/api/facts?document=${previous.id}`).then((r) => r.facts) : Promise.resolve([] as FactDto[])),
+    () => (previous ? api.facts.list({ document: previous.id }) : Promise.resolve([] as FactDto[])),
     previous?.id ?? null,
   );
   const suggestions = useMemo(
@@ -144,15 +144,12 @@ export function DocumentView({ id, factId }: { id: number; factId: number | null
 
   const add = useAction(async () => {
     const res = await mutate(() =>
-      apiFetch<ProposeFactResponse>("/api/facts", {
-        method: "POST",
-        body: buildProposeRequest(form, concept!, { documentId: id, pageNo: draft!.pageNo, bbox: draft!.rect }),
-      }),
+      api.facts.propose(buildProposeRequest(form, concept!, { documentId: id, pageNo: draft!.pageNo, bbox: draft!.rect })),
     );
     let fact = res.fact;
     let conflicts: FactDto[] | null = null;
     try {
-      fact = await mutate(() => apiFetch<{ fact: FactDto }>(`/api/facts/${fact.id}/verify`, { method: "POST", body: {} }).then((r) => r.fact));
+      fact = await mutate(() => api.facts.verify(fact.id));
     } catch (e) {
       // A different value is already verified for the same slot: keep it as proposed and say so.
       conflicts = e instanceof ApiError ? e.conflicts : null;
@@ -180,7 +177,7 @@ export function DocumentView({ id, factId }: { id: number; factId: number | null
   };
 
   const setStatus = useAction(async (status: "inbox" | "reviewed") => {
-    await mutate(() => apiFetch(`/api/documents/${id}`, { method: "PATCH", body: { status } satisfies UpdateDocumentRequest }));
+    await mutate(() => api.documents.update(id, { status }));
     if (status === "reviewed") {
       window.location.hash = hrefDocuments();
       return;
@@ -222,7 +219,7 @@ export function DocumentView({ id, factId }: { id: number; factId: number | null
           main={
             <Stack gap={2}>
               <PdfViewer
-                source={{ url: `/api/documents/${id}/file` }}
+                source={{ url: api.documents.fileUrl(id) }}
                 highlights={highlights}
                 onSelect={onSelect}
                 focus={focus}
@@ -355,14 +352,14 @@ function DocDetails({ doc, selectedText, onChanged }: { doc: DocumentDetailDto; 
   const inferredInstitution = doc.institutionId === null && linkedInstitutions.length === 1 ? linkedInstitutions[0] : undefined;
   useEffect(() => {
     if (inferredInstitution === undefined) return;
-    void mutate(() => apiFetch(`/api/documents/${doc.id}`, { method: "PATCH", body: { institutionId: inferredInstitution } satisfies UpdateDocumentRequest }))
+    void mutate(() => api.documents.update(doc.id, { institutionId: inferredInstitution }))
       .then(onChanged)
       .catch((e) => setError(errorText(e)));
   }, [doc.id, inferredInstitution]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const patch = (body: UpdateDocumentRequest, flashSaved: boolean) =>
     run(async () => {
-      await mutate(() => apiFetch(`/api/documents/${doc.id}`, { method: "PATCH", body }));
+      await mutate(() => api.documents.update(doc.id, body));
       setSaved(flashSaved);
       await onChanged();
     });
@@ -390,7 +387,7 @@ function DocDetails({ doc, selectedText, onChanged }: { doc: DocumentDetailDto; 
   const link = async (accountId = Number(linkId)) => {
     if (!accountId) return;
     await run(async () => {
-      await mutate(() => apiFetch(`/api/documents/${doc.id}/accounts`, { method: "POST", body: { accountId } }));
+      await mutate(() => api.documents.linkAccount(doc.id, accountId));
       setLinkId("");
       await onChanged();
     });

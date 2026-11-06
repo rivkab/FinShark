@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { FactDto } from "@finshark/shared";
-import { ApiError, apiFetch } from "./api.ts";
+import { api, ApiError } from "./api.ts";
 import { useActor } from "./context.tsx";
 import { hrefDocument, hrefFact } from "./route.ts";
 import { FactAmount, useAction } from "./ui.tsx";
@@ -28,7 +28,7 @@ export function ConflictChoice({
   const replace = async () => {
     const ok = await act.run(async () => {
       try {
-        await mutate(() => apiFetch(`/api/facts/${fact.id}/verify`, { method: "POST", body: { replace: conflicts.map((c) => c.id) } }));
+        await mutate(() => api.facts.verify(fact.id, conflicts.map((c) => c.id)));
       } catch (e) {
         // Something else was verified for the same slot meanwhile: show the current list and let them choose again.
         if (e instanceof ApiError && e.conflicts) {
@@ -45,7 +45,7 @@ export function ConflictChoice({
   };
   const keep = async () => {
     const ok = await act.run(() =>
-      mutate(() => apiFetch(`/api/facts/${fact.id}/reject`, { method: "POST", body: { reason: `Kept ${ids} instead` } })),
+      mutate(() => api.facts.reject(fact.id, `Kept ${ids} instead`)),
     );
     if (ok) await onDone("kept");
   };
