@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import { checkDatabase } from "../db/integrity.ts";
+import { iCloudDrive, type ChooseFolder } from "./choose-folder.ts";
 import type { VaultLayout } from "../vault/layout.ts";
 import { createBackup } from "./create.ts";
 import { recoveryText, type Problem } from "./format.ts";
@@ -65,6 +66,8 @@ export interface BackupServiceDeps {
   /** scrypt work factor for vault-key.age; tests pass a low one. */
   scryptWorkFactor?: number;
   log?: (message: string) => void;
+  /** The macOS folder chooser; absent where there is none (then the path is typed). */
+  chooseFolder?: ChooseFolder;
 }
 
 export interface BackupFileInfo {
@@ -99,6 +102,8 @@ export interface BackupStatus {
   keyMismatch: boolean;
   secondDir: string | null;
   secondDirProblem: string | null;
+  /** A "Choose..." button can open the macOS folder chooser. */
+  canChooseFolder: boolean;
   running: boolean;
   lastError: string | null;
   /** Newest first. */
@@ -298,6 +303,7 @@ export class BackupService {
       keyMismatch: this.keyState?.mismatch ?? false,
       secondDir: s?.second_dir ?? null,
       secondDirProblem,
+      canChooseFolder: this.d.chooseFolder !== undefined,
       running: this.running !== null,
       lastError: this.lastError,
       files,
@@ -398,6 +404,20 @@ export class BackupService {
     if (recipient !== s.recipient) throw new BackupError("wrong_key", "That key belongs to a different vault or an earlier setup.");
     await this.d.keyStore.save(this.d.vaultId, identity);
     this.keyState = { identity, mismatch: false };
+  }
+
+  /**
+   * Pick the second folder in the macOS folder chooser and save it (with the same checks as a
+   * typed path). Returns false if the chooser was cancelled.
+   */
+  async chooseSecondDir(): Promise<boolean> {
+    const s = this.requireSetUp();
+    if (!this.d.chooseFolder) throw new BackupError("no_chooser", "There is no folder chooser here; type the folder's path instead.");
+    const startIn = s.second_dir ?? ((await exists(iCloudDrive())) ? iCloudDrive() : null);
+    const chosen = await this.d.chooseFolder({ prompt: "Choose the folder FinShark copies each backup to", startIn });
+    if (chosen === null) return false;
+    await this.setSecondDir(chosen);
+    return true;
   }
 
   /** Set (or clear, with null) the second backup folder, and copy the key file and the newest backup there. */

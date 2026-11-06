@@ -61,6 +61,12 @@ export function registerBackupRoutes(app: FastifyInstance, ctx: ApiContext): voi
     return (await service().status()) satisfies BackupStatusDto;
   });
 
+  // Waits while the person chooses a folder in the macOS window.
+  app.post("/api/backups/second-folder/choose", async () => {
+    await run(() => service().chooseSecondDir());
+    return (await service().status()) satisfies BackupStatusDto;
+  });
+
   app.put("/api/backups/second-folder", async (req) => {
     const o = jsonBody(req);
     const p = o["path"] === null ? null : reqStr(o, "path").trim();

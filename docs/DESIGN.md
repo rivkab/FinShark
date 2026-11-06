@@ -1250,8 +1250,11 @@ but this Mac has no private key, the page says so and links to this step. It doe
 the warnings for unverified backups as if something were broken.
 
 **Where backups go.** Always into the vault's `backups/` folder, which protects against
-mistakes and corruption but not against losing the disk. A second folder can be chosen
-(an external drive, or a folder that another app syncs; FinShark itself never uploads
+mistakes and corruption but not against losing the disk. A second folder can be chosen,
+by typing its full path or with "Choose...", which opens the standard macOS folder chooser
+(the server runs the built-in `osascript`; a browser page can't learn a folder's full
+path). The chooser starts in the current second folder, else iCloud Drive. The second folder
+can be an external drive, or a folder that another app syncs (FinShark itself never uploads
 anything). Each backup is written to the vault's folder first and then copied to the
 second folder. If the second folder is missing, for example an unplugged drive, that is
 shown as a warning; the backup still counts.

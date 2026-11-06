@@ -7,6 +7,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { existsSync, readFileSync } from "node:fs";
 import os from "node:os";
+import { chooseFolderWithOsascript } from "./backup/choose-folder.ts";
 import { KeychainKeyStore } from "./backup/keychain.ts";
 import { FileKeyStore } from "./backup/keys.ts";
 import { BackupService } from "./backup/service.ts";
@@ -70,6 +71,7 @@ const backups = new BackupService({
   keyStore,
   now: () => new Date(),
   appVersion: APP_VERSION,
+  ...(process.platform === "darwin" ? { chooseFolder: chooseFolderWithOsascript } : {}),
 });
 
 const app = buildServer({

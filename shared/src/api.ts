@@ -58,6 +58,7 @@
 //   POST /api/backups/setup/confirm  BackupConfirmRequest -> BackupStatusDto
 //   POST /api/backups/key     BackupImportKeyRequest     -> BackupStatusDto   (use this vault's key on this Mac)
 //   PUT  /api/backups/second-folder  BackupSecondFolderRequest -> BackupStatusDto
+//   POST /api/backups/second-folder/choose   -> BackupStatusDto   (opens the macOS folder chooser; unchanged if cancelled)
 //   GET  /api/session / POST /api/session/person         (see server/src/http/app.ts)
 
 import type { PdfRect } from "./pdf-geometry.ts";
@@ -594,6 +595,8 @@ export interface BackupStatusDto {
   keyMismatch: boolean;
   secondDir: string | null;
   secondDirProblem: string | null;
+  /** A "Choose..." button can open the macOS folder chooser (POST /api/backups/second-folder/choose). */
+  canChooseFolder: boolean;
   running: boolean;
   lastError: string | null;
   /** Newest first. */

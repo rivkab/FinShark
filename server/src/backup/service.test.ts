@@ -165,6 +165,26 @@ describe("BackupService backups", () => {
     }
   });
 
+  it("saves the folder picked in the chooser, with the same checks, and does nothing on cancel", async () => {
+    const picks: (string | null)[] = [null, path.join(tmp, "missing"), path.join(tmp, "picked")];
+    const asked: { prompt: string; startIn: string | null }[] = [];
+    const svc = new BackupService({
+      db: vault.db, layout: vault.layout, vaultId: VAULT_ID, keyStore, now: () => clock, appVersion: "0.0.0-test", timers, scryptWorkFactor: 8, log: () => {},
+      chooseFolder: async (o) => (asked.push(o), picks.shift() ?? null),
+    });
+    expect((await svc.status()).canChooseFolder).toBe(true);
+    await setUp(svc);
+    expect(await svc.chooseSecondDir()).toBe(false);
+    expect((await svc.status()).secondDir).toBeNull();
+    await expect(svc.chooseSecondDir()).rejects.toThrow(/can't be reached/);
+    fs.mkdirSync(path.join(tmp, "picked"));
+    expect(await svc.chooseSecondDir()).toBe(true);
+    expect((await svc.status()).secondDir).toBe(path.join(tmp, "picked"));
+    expect(await svc.chooseSecondDir()).toBe(false); // starts in the current folder
+    expect(asked.at(-1)!.startIn).toBe(path.join(tmp, "picked"));
+    expect((await service().status()).canChooseFolder).toBe(false);
+  });
+
   it("keeps a GFS set, deletes only FinShark's files, and never the newest verified backup", async () => {
     const svc = service();
     await setUp(svc);
@@ -258,6 +278,7 @@ describe("backupWarnings", () => {
     keyMismatch: false,
     secondDir: null,
     secondDirProblem: null,
+    canChooseFolder: false,
     running: false,
     lastError: null,
     files: [],

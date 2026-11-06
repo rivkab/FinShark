@@ -296,6 +296,11 @@ function SecondFolder({ s, setData }: { s: BackupStatusDto; setData: (d: BackupS
       setDir(next.secondDir ?? "");
     }),
   );
+  const choose = useAction(async () => {
+    const next = await apiFetch<BackupStatusDto>("/api/backups/second-folder/choose", { method: "POST" });
+    setData(next);
+    setDir(next.secondDir ?? "");
+  });
   return (
     <Section title="Second folder">
       <Stack gap={3}>
@@ -310,10 +315,12 @@ function SecondFolder({ s, setData }: { s: BackupStatusDto; setData: (d: BackupS
               <TextInput dir="ltr" value={dir} onChange={setDir} placeholder="/Users/you/Library/Mobile Documents/com~apple~CloudDocs/FinShark backups" />
             </Field>
             <Button type="submit" busy={save.busy}>Save</Button>
+            {s.canChooseFolder && <Button busy={choose.busy} onClick={() => void choose.run()}>Choose...</Button>}
             {s.secondDir !== null && <Button variant="ghost" onClick={() => void save.run(null)}>Stop copying</Button>}
           </FieldRow>
         </Form>
-        <Alert tone="danger">{save.error}</Alert>
+        <Alert tone="danger">{save.error ?? choose.error}</Alert>
+        {choose.busy && <Text tone="muted" size="sm">Choose the folder in the window that opened (it may be behind the browser).</Text>}
         {s.secondDir === null && <Inline><Text tone="muted" size="sm">No second folder: backups stay on this Mac only.</Text></Inline>}
       </Stack>
     </Section>
