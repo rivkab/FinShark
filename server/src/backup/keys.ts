@@ -64,9 +64,7 @@ export async function unwrapIdentity(file: Uint8Array, passphrase: string): Prom
 
 /**
  * Where the private key lives between uses.
- *
- * TODO: macOS Keychain implementation (DESIGN §8.3 (a)). Out of scope for now;
- * it should implement this interface so callers don't change.
+ * The app uses KeychainKeyStore (keychain.ts).
  */
 export interface KeyStore {
   save(vaultId: string, identity: string): Promise<void>;

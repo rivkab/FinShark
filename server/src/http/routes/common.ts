@@ -6,6 +6,7 @@ import { ImportError } from "../../documents/import.ts";
 import { RateParseError } from "../../currency/index.ts";
 import type { ExtractFn } from "../../documents/text-layer.ts";
 import type { VaultLayout } from "../../vault/layout.ts";
+import type { BackupService } from "../../backup/service.ts";
 
 /** What every route module needs. Clock and ids are injected. */
 export interface ApiContext {
@@ -17,6 +18,8 @@ export interface ApiContext {
   maxUploadBytes: number;
   /** Override the PDF text extractor (tests). */
   extractText?: ExtractFn | undefined;
+  /** Backups (DESIGN D20); absent in tests that don't need them. */
+  backups?: BackupService | undefined;
 }
 
 export const DEFAULT_MAX_UPLOAD_BYTES = 100 * 1024 * 1024;

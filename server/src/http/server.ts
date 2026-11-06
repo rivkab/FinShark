@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import type { ExtractFn } from "../documents/text-layer.ts";
 import type { Vault } from "../vault/vault.ts";
+import type { BackupService } from "../backup/service.ts";
 import { buildApp } from "./app.ts";
 import { DEFAULT_MAX_UPLOAD_BYTES, registerApiRoutes } from "./routes/index.ts";
 
@@ -15,6 +16,7 @@ export interface ServerDeps {
   staticDir?: string;
   maxUploadBytes?: number;
   extractText?: ExtractFn;
+  backups?: BackupService;
 }
 
 /** The app with all security hooks, the people check and the API routes wired to a vault. */
@@ -36,6 +38,7 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
         newId: deps.newId,
         maxUploadBytes: deps.maxUploadBytes ?? DEFAULT_MAX_UPLOAD_BYTES,
         extractText: deps.extractText,
+        backups: deps.backups,
       }),
   });
 }

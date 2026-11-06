@@ -8,7 +8,8 @@ export interface TextInputProps {
   onChange: (value: string) => void;
   /** Typing direction: "auto" follows the first strong character (Hebrew or English). */
   dir?: "auto" | "ltr" | undefined;
-  type?: "text" | "search" | undefined;
+  /** "password" hides what is typed (passphrases). */
+  type?: "text" | "search" | "password" | undefined;
   placeholder?: string | undefined;
   size?: "md" | "sm" | undefined;
   maxLength?: number | undefined;

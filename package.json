@@ -15,7 +15,9 @@
     "test": "vitest run",
     "start": "npm run build -w web -- --logLevel warn && node server/src/main.ts",
     "dev:server": "node --watch server/src/main.ts",
-    "dev:web": "npm run dev -w web"
+    "dev:web": "npm run dev -w web",
+    "restore": "node server/src/backup/restore-cli.ts",
+    "make-app": "node server/src/launcher/make-app.ts"
   },
   "devDependencies": {
     "@types/node": "26.6.3",

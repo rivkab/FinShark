@@ -16,6 +16,7 @@ describe("parseHash", () => {
   });
   it("parses the pay page", () => {
     expect(parseHash("#/pay")).toEqual({ page: "pay" });
+    expect(parseHash("#/backups")).toEqual({ page: "backups" });
     expect(hrefPay()).toBe("#/pay");
   });
   it("defaults to accounts", () => {
