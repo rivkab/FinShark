@@ -753,7 +753,8 @@ SQL mode.
 2. ~~Volume & mix~~ **Answered: several dozen documents a year, about a third in
    Hebrew; mostly digital PDFs, few scans.** See §14 D2.
 3. ~~Which workflows first?~~ **Answered: FBAR first, because it's the simplest.** See
-   §14 D18. CSS Profile / school aid, the US return, Form 8938 and the Israeli return follow.
+   §14 D18. Form 8938 is second (§14 D21); CSS Profile / school aid, the US return and the Israeli
+   return follow.
 4. ~~UI language~~ **Answered: Hebrew labels for Israeli documents and accounts,
    English for American ones; app menus and buttons in English.** See §14 D3.
    Exports: source language by default, with an "English export" option.
@@ -1158,8 +1159,8 @@ account, per calendar year.
   usable on screen without it; build it once a result actually has to be handed to a
   preparer or kept as a record. Corrections to a fact still never rewrite history, since
   facts are append-only; what is deferred is freezing "what we sent" as a snapshot.
-- **Not in scope yet:** Form 8938 (different thresholds and a different rate treatment),
-  which reuses the same pieces.
+- **Not in scope yet:** Form 8938 (different thresholds), which reuses the same pieces.
+  See D21, which also corrects the earlier note here that it uses a different rate.
 
 ### D19. No Facts list; numbers are shown where their subject is (2026-10-29)
 
@@ -1332,3 +1333,107 @@ localhost security (§9). The scheduler takes the clock as an input, so it can b
   there, and FinShark never uploads anything itself. An external drive can be added later.
 - The "10 minutes after the last change" trigger stays, because the app is often left
   running for days and "on start" alone could leave a lot of work without a backup.
+
+### D21. Form 8938 is the second workflow (2026-11-06)
+
+Form 8938 (Statement of Specified Foreign Financial Assets) reuses most of the FBAR pieces
+(D18): foreign accounts, `maxInPeriod`, the Treasury rate for 31 December and its completeness
+rules. The household files jointly and lives in the US today, but may live abroad later, so
+both are recorded for each tax year rather than fixed. This entry follows the IRS Instructions
+for Form 8938 as read on 2026-11-06; amounts and rules are checked against them again each
+filing season.
+
+**Per tax year: filing status and residence.** A new table `tax_years` (migration 009) holds,
+per calendar year, `filing_status` and `abroad_8938` (whether the household meets a presence
+abroad test as the instructions define it: a bona fide resident of a foreign country for a
+whole tax year, or present abroad 330 full days in 12 consecutive months). FinShark records
+the answer; it does not count days or decide residence. Only `married_joint` is supported
+for now. Any other status makes the report UNDETERMINED with a message, not a guess, since the
+joint-ownership rules differ.
+
+| Married filing jointly | Last day of the year | At any time in the year |
+|---|---|---|
+| Living in the US | more than $100,000 | more than $150,000 |
+| Living abroad | more than $400,000 | more than $600,000 |
+
+If residence is not set for the year, both rows are tested. The verdict is REQUIRED only if the
+abroad thresholds are exceeded, and NOT_REQUIRED only if the US thresholds are not.
+Anything in between is UNDETERMINED until residence is set.
+
+**Per account: how the form treats it.** Following C5 and D10, this is a classification, not
+something inferred from the account type. A new taxonomy `us_8938`, with terms attached
+through `account_terms` (which already has validity dates, so treatment can change between
+years):
+
+- `us_8938/financial_account`: a foreign deposit or custodial account. Its maximum value is
+  `maxInPeriod` over its balances, as for FBAR (periodic statements may be relied on).
+- `us_8938/pension_plan`: an interest in a foreign pension or deferred compensation plan
+  (for example an Israeli pension fund, kupat gemel or keren hishtalmut, if the preparer
+  agrees). Its maximum value is the fair market value of the interest on the last day of
+  the year, so it needs a balance dated exactly 31 December; its other balances are not
+  used. The instructions' fallback when that value is unknown (distributions received) is
+  not built; the value is shown as missing.
+- `us_8938/not_reportable`: excluded, with a required reason (shown on the report).
+- `us_8938/ask_preparer`: undecided on purpose.
+
+The report covers foreign accounts (country not US, as for FBAR). An account with no term is
+listed as "Not classified", next to a control to classify it, and is treated like
+`ask_preparer`.
+
+**Values.** For each counted account, in USD at the Treasury rate for 31 December of the tax
+year (also for accounts closed earlier in the year, as the instructions say):
+
+- *Maximum value*, as above.
+- *Year-end value*: a balance dated exactly 31 December (C6: never carried forward from an
+  earlier date). An account closed before 31 December (`closed_on`) has a year-end value of
+  zero, which is stated as coming from the closing date, not from a statement.
+- Joint accounts count once, at their full value (married filing jointly).
+
+**Threshold tests.** Like FBAR, the "at any time" wording does not say whether it means
+the sum of each asset's own maximum or the total on one date. The instructions only say to
+"figure the total value". So both readings are shown, as in D18.
+
+- *Year-end:* the sum of year-end values against the year-end threshold.
+- *At any time:* the sum of maxima, and the single-date totals, against the at-any-time
+  threshold.
+- *Verdict:* REQUIRED if, counting only `financial_account` and `pension_plan` accounts with
+  known values, the year-end total or a single-date total exceeds its threshold. NOT_REQUIRED
+  if, counting every unclassified and `ask_preparer` account as well, every value is known and
+  neither the year-end total nor the sum of maxima exceeds its threshold. DEPENDS_ON_RULE if
+  only the sum-of-maxima reading, or only accounts marked `ask_preparer` or not classified,
+  push it over. Otherwise UNDETERMINED.
+
+**Per-account details (Part V / VI).** For each counted account: an account identifier (from
+`account_identifiers`), the institution's name, whether it was opened or closed during the
+year, its owners (so the preparer can tick "jointly owned with spouse"), the maximum value,
+the currency, the rate used and its date. The institution's mailing address and GIIN are not
+stored in the vault and are shown as "not in FinShark".
+
+**Tax items (Part III).** For each counted account: the year's interest and dividends (the
+duration facts on its "Other numbers" table, D19), totalled by kind of number, each linking
+to its sources. A total is only shown as complete if the facts' periods cover the whole
+year without overlap; otherwise the gaps are listed. Where each item was reported on the
+return is left to the preparer. An account with no tax items is flagged, since Part V has a
+box for that.
+
+**Rates.** The rule is the same as FBAR's: the Treasury rate for the last day of the tax
+year. The instructions allow another public rate (disclosed on the form) when Treasury has
+none, or a rate from an annual statement; neither is built, so a missing Treasury rate is
+shown as missing. This corrects D18, which said 8938 uses a different rate treatment.
+
+**Not in scope:**
+
+- Part IV (assets reported on Forms 3520, 5471, 8621 or 8865 instead). These forms are not
+  tracked, so the report says Part IV must be checked by the preparer. Such assets still
+  count toward the threshold. PFICs (for example Israeli mutual funds) are a likely reason
+  for Form 8621; FinShark keeps only account-level balances (D5), so it does not identify them.
+- Assets that are not accounts (directly held foreign stock, interests in foreign entities or
+  trusts).
+- Filing statuses other than married filing jointly.
+- Whether the household has to file a return at all (no return, no 8938).
+
+**Build:** `server/src/query/form8938.ts` beside `fbar.ts`, taking the same kind of input and
+the same pure-function shape, with the shared pieces (Treasury conversion, foreign-account
+selection) moved out of `fbar.ts` rather than copied; migration 009 (`tax_years`, the
+`us_8938` taxonomy and terms); `GET /api/form8938?year=` (like `/api/fbar`); endpoints to set a year's
+filing status and residence and an account's `us_8938` term; and a Form 8938 page next to FBAR.
