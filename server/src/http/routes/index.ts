@@ -2,6 +2,7 @@
 import type { FastifyInstance } from "fastify";
 import { MUTATING_METHODS, requestPath } from "../security.ts";
 import { apiErrorHandler, actorId, type ApiContext } from "./common.ts";
+import { registerBackupRoutes } from "./backups.ts";
 import { registerDocumentRoutes } from "./documents.ts";
 import { registerFbarRoutes } from "./fbar.ts";
 import { registerFactRoutes } from "./facts.ts";
@@ -22,9 +23,18 @@ export function registerApiRoutes(app: FastifyInstance, ctx: ApiContext): void {
   app.addHook("preHandler", async (req) => {
     if (MUTATING_METHODS.has(req.method) && !NO_PERSON_NEEDED.has(requestPath(req)) && !PERSON_EDIT_PATH.test(requestPath(req))) actorId(req);
   });
+  // A successful change to the vault starts the "10 minutes after the last change" backup (D20).
+  // Backups and the session are not changes to the vault's contents.
+  app.addHook("onResponse", async (req, reply) => {
+    const p = requestPath(req);
+    if (MUTATING_METHODS.has(req.method) && reply.statusCode < 400 && !p.startsWith("/api/backups") && !p.startsWith("/api/session")) {
+      ctx.backups?.markChanged();
+    }
+  });
   registerReferenceRoutes(app, ctx);
   registerDocumentRoutes(app, ctx);
   registerFactRoutes(app, ctx);
   registerRateRoutes(app, ctx);
   registerFbarRoutes(app, ctx);
+  registerBackupRoutes(app, ctx);
 }

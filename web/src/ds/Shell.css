@@ -9,6 +9,13 @@
   flex: 1;
 }
 
+.ds-app-shell__notice {
+  width: 100%;
+  max-width: var(--page-max);
+  margin-inline: auto;
+  padding: var(--space-4) var(--page-gutter) 0;
+}
+
 .ds-app-shell__footer-inner {
   max-width: var(--page-max);
   margin-inline: auto;

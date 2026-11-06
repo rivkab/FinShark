@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { PersonDto } from "@finshark/shared";
 import { AccountPage } from "./AccountPage.tsx";
 import { AccountsPage } from "./AccountsPage.tsx";
+import { BackupsPage } from "./BackupsPage.tsx";
 import { apiFetch, errorText, fetchSession, setActingPerson } from "./api.ts";
 import { ActorProvider, RefDataProvider } from "./context.tsx";
 import { DemoPage } from "./DemoPage.tsx";
@@ -12,10 +13,10 @@ import { FactHistory } from "./FactPage.tsx";
 import { FbarPage } from "./FbarPage.tsx";
 import { PayPage } from "./PayPage.tsx";
 import { RatesPage } from "./RatesPage.tsx";
-import { parseHash, type Route } from "./route.ts";
+import { hrefBackups, parseHash, type Route } from "./route.ts";
 import { useAction, useLoad } from "./ui.tsx";
 import { WhoIsUsing } from "./WhoIsUsing.tsx";
-import type { DocumentDto } from "@finshark/shared";
+import type { BackupStatusDto, DocumentDto } from "@finshark/shared";
 import {
   Alert,
   AppHeader,
@@ -43,6 +44,7 @@ const NAV = [
   { label: "Documents", href: "#/documents", pages: ["documents", "document"] },
   { label: "FBAR", href: "#/fbar", pages: ["fbar"] },
   { label: "Rates", href: "#/rates", pages: ["rates"] },
+  { label: "Backups", href: "#/backups", pages: ["backups"] },
 ] as const;
 
 function useRoute(): Route {
@@ -163,6 +165,9 @@ function Shell({
   // Keyed on the route so the inbox count refreshes as you move around.
   const docs = useLoad(() => apiFetch<{ documents: DocumentDto[] }>("/api/documents").then((r) => r.documents), route);
   const inbox = docs.data?.filter((d) => d.status === "inbox").length ?? 0;
+  // Backup problems are shown on every page (DESIGN D20); the Backups page shows them itself.
+  const backups = useLoad(() => apiFetch<BackupStatusDto>("/api/backups"), route);
+  const backupWarnings = route.page === "backups" ? [] : (backups.data?.warnings ?? []);
 
   const items = NAV.map((n) => ({
     label: n.label,
@@ -179,6 +184,17 @@ function Shell({
           nav={<NavTabs items={items} />}
           user={<UserChip name={person?.displayName ?? personId} onSwitch={onSwitch} />}
         />
+      }
+      notice={
+        backupWarnings.length > 0 && (
+          <Stack gap={2}>
+            {backupWarnings.map((w) => (
+              <Alert key={w.code} tone="warning">
+                {w.message} <Link href={hrefBackups()}>Go to Backups</Link>
+              </Alert>
+            ))}
+          </Stack>
+        )
       }
       footer={
         <Inline gap={4}>
@@ -201,6 +217,7 @@ function RoutePage({ route }: { route: Route }) {
     case "account": return <AccountPage id={route.id} />;
     case "fbar": return <FbarPage year={route.year} />;
     case "pay": return <PayPage />;
+    case "backups": return <BackupsPage />;
     case "rates": return <RatesPage />;
     case "demo": return <DemoPage />;
     case "design": return <DesignPage />;

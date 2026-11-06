@@ -55,7 +55,8 @@ to `--space-n`). Defaults noted per component.
 
 ### App chrome
 
-- `AppShell({ header, footer?, children })`: full-height page on `--color-bg`.
+- `AppShell({ header, notice?, footer?, children })`: full-height page on `--color-bg`.
+  `notice` holds app-wide alerts under the header (backup warnings), at page width.
 - `AppHeader({ brand, nav, user })`: bottom border `--color-border-strong`, inner
   row max-width `--page-max`, padding-inline `--page-gutter`, items aligned to the
   bottom so the tab underline sits on the border. Wraps on phones.
@@ -132,7 +133,7 @@ to `--space-n`). Defaults noted per component.
   child.
 - `FieldGroup({ label, children })`: `<fieldset>` with `<legend>` styled like a Field
   label; for checkbox sets. No border.
-- `TextInput({ value, onChange: (v: string) => void, dir?: "auto" | "ltr" = "auto", type?: "text" | "search", placeholder?, size?, maxLength?, autoFocus?, "aria-label"?, id? })`
+- `TextInput({ value, onChange: (v: string) => void, dir?: "auto" | "ltr" = "auto", type?: "text" | "search" | "password", placeholder?, size?, maxLength?, autoFocus?, "aria-label"?, id? })`
 - `DateInput({ value, onChange, "aria-label"? })`
 - `TextArea({ value, onChange, rows = 3, "aria-label"? })`, dir auto, left aligned, full width.
 - `Select({ value, onChange: (v: string) => void, options?: SelectOption[], groups?: { label: string; options: SelectOption[] }[], placeholder?: string, "aria-label"?, id? })`

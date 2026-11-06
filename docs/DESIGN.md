@@ -1213,10 +1213,12 @@ This amends D15 (the Facts page, and where the "Conflicting values" stat links) 
 
 ### D20. Backups run from the app (2026-10-29)
 
-**Proposed, not built yet.** The backup format, create, verify, restore, keys and
-retention (§8) are written and tested in `server/src/backup/`, but nothing in the app
-calls them, so a vault is not backed up today. This wires them in. It changes no part
-of the format.
+The backup format, create, verify, restore, keys and retention (§8) were written and
+tested in `server/src/backup/`, but nothing in the app called them. This wires them in
+(`service.ts`, `keychain.ts`, `restore-cli.ts`, `http/routes/backups.ts`, the Backups
+page). It changes no part of the format. Bookkeeping (the public key, the second folder,
+what is known about each backup file) is in `backup_settings` and `backup_files`
+(migration 008); the files on disk are the truth about which backups exist.
 
 **Key setup (once per vault).** A Backups page offers "Set up backups":
 
@@ -1231,7 +1233,9 @@ of the format.
    which shows the sheet was actually seen.
 4. Ask for a passphrase and write `vault-key.age` (the key wrapped with it, §8.3 (c))
    into each backup folder, so a backup can be restored with that file and the
-   passphrase even if the Mac and the sheet are lost.
+   passphrase even if the Mac and the sheet are lost. The passphrase must be at least 10
+   characters. In practice the passphrase is asked for first, so the key is made, saved
+   and wrapped in one step, and the sheet is shown after it.
 
 Until setup is done, every page shows a warning that the vault has no backups.
 
@@ -1246,22 +1250,50 @@ but this Mac has no private key, the page says so and links to this step. It doe
 the warnings for unverified backups as if something were broken.
 
 **Where backups go.** Always into the vault's `backups/` folder, which protects against
-mistakes and corruption but not against losing the disk. A second folder can be chosen
-(an external drive, or a folder that another app syncs; FinShark itself never uploads
+mistakes and corruption but not against losing the disk. A second folder can be chosen,
+by typing its full path or with "Choose...", which opens the standard macOS folder chooser
+(the server runs the built-in `osascript`; a browser page can't learn a folder's full
+path). The chooser starts in the current second folder, else iCloud Drive. The second folder
+can be an external drive, or a folder that another app syncs (FinShark itself never uploads
 anything). Each backup is written to the vault's folder first and then copied to the
 second folder. If the second folder is missing, for example an unplugged drive, that is
 shown as a warning; the backup still counts.
 
 **When.** There is no background service. While the app is running it backs up:
 
-- on start, if the last backup is more than a day old;
-- 10 minutes after the last change, if anything has changed since the last backup;
-- when someone clicks "Back up now".
+- on start, if the last backup is more than a day old, or if something changed since it
+  (the app was closed before the 10 minutes were up; the time of the last change is
+  kept in `backup_settings.changed_at`);
+- 10 minutes after the last change, if anything has changed since the last backup. A
+  change is any successful mutating API request except backup actions and the session;
+- when someone clicks "Back up now", and right after setup is finished.
+
+Backups are named to the minute, so a second one in the same minute is refused with a
+message ("try again in a minute").
 
 Only one backup runs at a time. Each one follows §8.2: verify the vault, write the
 backup, then verify the written file straight away with the Keychain key. If the key
 can't be read (the Keychain is locked or the key is missing), the backup is still
 written, marked "not yet verified", and verified the next time the key is available.
+
+Off macOS (development only) the key is kept in a 0600 file under `~/.finshark-keys`
+instead of the Keychain.
+
+**A FinShark app, so no terminal needs folder access.** macOS grants access to
+protected folders (iCloud Drive, Documents, external drives) per app, and a process counts
+as part of the app that started it. Started from a terminal, FinShark could only use an
+iCloud Drive folder if that terminal (and so everything run in it, Claude Code included)
+had access to all of iCloud Drive. Instead, `npm run make-app` builds `FinShark.app` (in
+`/Applications`, with macOS's built-in `osacompile`; nothing is installed) for one vault.
+It is a stay-open applet: it starts the server in the background, logs to
+`~/Library/Logs/FinShark.log`, notices if the server stops, opens the browser again when
+reopened, and stops the server (letting a running backup finish) when quit. Folder access
+is then granted to FinShark alone. `osacompile` names the program "applet" and sets no
+bundle identifier, so macOS would ask on behalf of "applet"; `make-app` renames it
+FinShark, sets the identifier `local.finshark.app` and signs it again. The signature is
+ad hoc, so the grant is tied to this exact build, and after a rebuild macOS may ask again. A second folder FinShark may write to but not list is refused when it is
+chosen, and if listing fails later, removing old backups there is skipped (with a
+warning) rather than failing the backup.
 
 **Retention.** The current GFS policy (`selectBackupsToDelete`; keep 7 daily, 8 weekly
 and 24 monthly) is applied after each successful backup, in each folder separately. It
@@ -1280,13 +1312,17 @@ newest verified backup.
 **Restore** is not in the web app. It always goes into a *new* vault directory (§8.2),
 then the app is started with `FINSHARK_VAULT` pointing at it. A script does this:
 `npm run restore -- <file.ffbackup> <new-dir>`. It uses the Keychain key, or asks for
-the `vault-key.age` passphrase. The Backups page explains how to use it. A "restore
+the `vault-key.age` passphrase. The Keychain is looked up by vault id, from
+`--vault-id` or the vault in `FINSHARK_VAULT`; otherwise the script uses `vault-key.age`
+next to the backup file. The Backups page explains how to use it. A "restore
 drill" (restoring into a temporary folder and checking that it opens) is what Verify
 already does.
 
 **API:** `GET /api/backups` (status and list), `POST /api/backups` (back up now),
-`POST /api/backups/:name/verify`, and `POST /api/backups/setup`. Setup is the only call
-that returns the private key, and it does so once. All of these sit behind the existing
+`POST /api/backups/:name/verify`, `POST /api/backups/setup`, `POST
+/api/backups/setup/confirm`, `POST /api/backups/key` (the key on this Mac) and `PUT
+/api/backups/second-folder`. Setup is the only call that returns the private key, and it
+does so once. All of these sit behind the existing
 localhost security (§9). The scheduler takes the clock as an input, so it can be tested.
 
 **Decided (2026-11-05):**

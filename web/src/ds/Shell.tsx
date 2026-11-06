@@ -7,14 +7,17 @@ import "./Shell.css";
 
 export interface AppShellProps {
   header: ReactNode;
+  /** App-wide notices under the header (e.g. backup warnings), shown on every page. */
+  notice?: ReactNode | undefined;
   footer?: ReactNode | undefined;
   children: ReactNode;
 }
 
-export function AppShell({ header, footer, children }: AppShellProps) {
+export function AppShell({ header, notice, footer, children }: AppShellProps) {
   return (
     <div className="ds-app-shell">
       {header}
+      {notice && <div className="ds-app-shell__notice">{notice}</div>}
       <div className="ds-app-shell__content">{children}</div>
       {footer && <footer className="ds-app-shell__footer"><div className="ds-app-shell__footer-inner">{footer}</div></footer>}
     </div>

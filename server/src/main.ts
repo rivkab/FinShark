@@ -5,7 +5,12 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
+import os from "node:os";
+import { chooseFolderWithOsascript } from "./backup/choose-folder.ts";
+import { KeychainKeyStore } from "./backup/keychain.ts";
+import { FileKeyStore } from "./backup/keys.ts";
+import { BackupService } from "./backup/service.ts";
 import { buildServer } from "./http/server.ts";
 import { choosePort, DEFAULT_PORT, isLoopbackPortFree, listenLoopback, LOOPBACK } from "./http/listen.ts";
 import { fillMissingLanguages } from "./documents/language.ts";
@@ -14,6 +19,8 @@ import { vaultLayout } from "./vault/layout.ts";
 import { createVault, openVault } from "./vault/vault.ts";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
+/** Recorded in each backup's manifest. */
+const APP_VERSION = (JSON.parse(readFileSync(path.join(repoRoot, "package.json"), "utf8")) as { version?: string }).version ?? "unversioned";
 const vaultRoot = process.env["FINSHARK_VAULT"] ? path.resolve(process.env["FINSHARK_VAULT"]) : path.join(repoRoot, "dev-vault");
 
 /** Print a plain message (no stack trace) and stop. */
@@ -54,12 +61,26 @@ if (chosen.note) console.log(chosen.note);
 const token = randomBytes(32).toString("base64url");
 const webDist = path.join(repoRoot, "web/dist");
 
+// The backup key lives in the macOS Keychain (DESIGN D20). Elsewhere (development only),
+// a 0600 file in the home directory stands in for it.
+const keyStore = process.platform === "darwin" ? new KeychainKeyStore() : new FileKeyStore(path.join(os.homedir(), ".finshark-keys"));
+const backups = new BackupService({
+  db: vault.db,
+  layout: vault.layout,
+  vaultId: vault.info.vaultId,
+  keyStore,
+  now: () => new Date(),
+  appVersion: APP_VERSION,
+  ...(process.platform === "darwin" ? { chooseFolder: chooseFolderWithOsascript } : {}),
+});
+
 const app = buildServer({
   vault,
   port,
   token,
   now: () => new Date(),
   newId: () => randomUUID(),
+  backups,
   ...(existsSync(webDist) ? { staticDir: webDist } : {}),
 });
 
@@ -67,8 +88,11 @@ let shuttingDown = false;
 const shutdown = () => {
   if (shuttingDown) return;
   shuttingDown = true;
-  void app
-    .close()
+  backups.stop();
+  // Let a backup that is being written finish, so it isn't left half done.
+  void backups
+    .idle()
+    .then(() => app.close())
     .catch(() => {})
     .finally(() => {
       vault.close();
@@ -84,6 +108,9 @@ try {
   vault.close();
   fail(e instanceof Error ? e.message : String(e));
 }
+
+// Back up now if the last backup is over a day old or something changed since (D20).
+void backups.start();
 
 // Documents imported before language detection existed: fill in what the text layer shows.
 void fillMissingLanguages(vault)

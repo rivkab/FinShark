@@ -51,6 +51,14 @@
 //                             optional query: note            -> 201 ImportRatesResponse
 //   GET  /api/exchange-rates                 -> { rates: ExchangeRateDto[] }
 //   GET  /api/fbar?year=YYYY                 -> FbarReportDto   (year defaults to the previous calendar year)
+//   GET  /api/backups                        -> BackupStatusDto
+//   POST /api/backups                        -> 201 BackupFileDto   (back up now; waits for it)
+//   POST /api/backups/:name/verify           -> BackupFileDto
+//   POST /api/backups/setup   BackupSetupRequest         -> 201 BackupSetupResponse (the only call that returns the private key)
+//   POST /api/backups/setup/confirm  BackupConfirmRequest -> BackupStatusDto
+//   POST /api/backups/key     BackupImportKeyRequest     -> BackupStatusDto   (use this vault's key on this Mac)
+//   PUT  /api/backups/second-folder  BackupSecondFolderRequest -> BackupStatusDto
+//   POST /api/backups/second-folder/choose   -> BackupStatusDto   (opens the macOS folder chooser; unchanged if cancelled)
 //   GET  /api/session / POST /api/session/person         (see server/src/http/app.ts)
 
 import type { PdfRect } from "./pdf-geometry.ts";
@@ -551,4 +559,70 @@ export interface FbarReportDto {
       dates: { date: string; usd: MoneyDto; missingAccountIds: number[] }[];
     };
   };
+}
+
+// ---------------------------------------------------------------- backups (DESIGN D20)
+
+export interface BackupProblemDto {
+  code: string;
+  message: string;
+  path?: string;
+}
+
+export interface BackupFileDto {
+  name: string;
+  createdAt: string;
+  bytes: number;
+  /** null = not yet verified. */
+  verifiedAt: string | null;
+  verifyOk: boolean | null;
+  problems: BackupProblemDto[];
+  /** Problems the vault check found while this backup was written. */
+  vaultWarnings: BackupProblemDto[];
+  copiedAt: string | null;
+  copyError: string | null;
+}
+
+export type BackupWarningCode = "not_set_up" | "stale" | "verify_failed" | "vault_problems" | "second_folder" | "backup_failed";
+
+export interface BackupStatusDto {
+  setUp: boolean;
+  /** A key was made but the recovery sheet isn't confirmed yet. */
+  awaitingConfirmation: boolean;
+  recipient: string | null;
+  keyOnThisMac: boolean;
+  /** This Mac's Keychain holds a key for a different public key. */
+  keyMismatch: boolean;
+  secondDir: string | null;
+  secondDirProblem: string | null;
+  /** A "Choose..." button can open the macOS folder chooser (POST /api/backups/second-folder/choose). */
+  canChooseFolder: boolean;
+  running: boolean;
+  lastError: string | null;
+  /** Newest first. */
+  files: BackupFileDto[];
+  /** Shown on every page. */
+  warnings: { code: BackupWarningCode; message: string }[];
+}
+
+export interface BackupSetupRequest {
+  passphrase: string;
+}
+
+export interface BackupSetupResponse {
+  identity: string;
+  recipient: string;
+  /** Plain text to print and keep somewhere safe. */
+  recoverySheet: string;
+}
+
+export interface BackupConfirmRequest {
+  lastChars: string;
+}
+
+export type BackupImportKeyRequest = { passphrase: string } | { identity: string };
+
+export interface BackupSecondFolderRequest {
+  /** Absolute path, or null to stop copying to a second folder. */
+  path: string | null;
 }
