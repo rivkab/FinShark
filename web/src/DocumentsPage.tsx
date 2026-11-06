@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { DocumentDto } from "@finshark/shared";
-import { apiFetch, errorText, uploadPdf } from "./api.ts";
+import { api, errorText } from "./api.ts";
 import { useActor, useRefData } from "./context.tsx";
 import { hrefDocument, hrefDocuments } from "./route.ts";
 import { describeUpload, periodLabel, type UploadOutcome } from "./suggest.ts";
@@ -18,7 +18,7 @@ interface FileResult {
 export function DocumentsPage({ accountId }: { accountId: number | null }) {
   const { mutate } = useActor();
   const { accounts } = useRefData();
-  const docs = useLoad(() => apiFetch<{ documents: DocumentDto[] }>("/api/documents").then((r) => r.documents), 0);
+  const docs = useLoad(() => api.documents.list(), 0);
   const shown = (docs.data ?? []).filter((d) => accountId === null || d.accountIds.includes(accountId));
   const account = accountId === null ? undefined : accounts.find((a) => a.id === accountId);
   const [results, setResults] = useState<FileResult[]>([]);
@@ -29,7 +29,7 @@ export function DocumentsPage({ accountId }: { accountId: number | null }) {
     for (const [i, file] of files.entries()) {
       const patch = (r: Partial<FileResult>) => setResults((all) => all.map((x, j) => (j === i ? { ...x, ...r } : x)));
       try {
-        const res = await mutate(() => uploadPdf(file));
+        const res = await mutate(() => api.documents.upload(file));
         patch({ state: "done", outcome: describeUpload(res) });
       } catch (e) {
         patch({ state: "error", error: errorText(e) });

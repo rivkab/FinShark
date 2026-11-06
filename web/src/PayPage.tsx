@@ -1,9 +1,8 @@
-import { apiFetch } from "./api.ts";
+import { api } from "./api.ts";
 import { useRefData } from "./context.tsx";
 import { formatDay, formatDayShort } from "./displayDate.ts";
 import { payView, type PayRow, type PayRowKind, type PayValue } from "./payView.ts";
 import { InstitutionName, useLoad } from "./ui.tsx";
-import type { DocumentDto, FactDto } from "@finshark/shared";
 import {
   Alert,
   DataText,
@@ -56,8 +55,8 @@ export function PayPage() {
   // (under "Not shown"), and payView keeps only person-level concepts.
   const loaded = useLoad(async () => {
     const [docs, facts] = await Promise.all([
-      apiFetch<{ documents: DocumentDto[] }>("/api/documents").then((r) => r.documents),
-      apiFetch<{ facts: FactDto[] }>("/api/facts").then((r) => r.facts),
+      api.documents.list(),
+      api.facts.list(),
     ]);
     return { docs, facts };
   }, 0);

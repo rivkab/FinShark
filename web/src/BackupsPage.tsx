@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { BackupFileDto, BackupSetupResponse, BackupStatusDto } from "@finshark/shared";
-import { apiFetch } from "./api.ts";
+import { api } from "./api.ts";
 import { backupCheck, formatBytes, formatWhen } from "./backupView.ts";
 import { useAction, useLoad } from "./ui.tsx";
 import {
@@ -33,7 +33,7 @@ const MIN_PASSPHRASE = 10;
 const CHECK_ICON = { success: "check", danger: "cross", warning: "clock", muted: "dash" } as const;
 
 export function BackupsPage() {
-  const status = useLoad(() => apiFetch<BackupStatusDto>("/api/backups"), 0);
+  const status = useLoad(() => api.backups.status(), 0);
   const [sheet, setSheet] = useState<BackupSetupResponse | null>(null);
   const s = status.data;
 
@@ -73,7 +73,7 @@ function SetUp({ awaiting, onMade }: { awaiting: boolean; onMade: (r: BackupSetu
   const make = useAction(async () => {
     if (pass.length < MIN_PASSPHRASE) throw new Error(`Use a passphrase of at least ${MIN_PASSPHRASE} characters.`);
     if (pass !== again) throw new Error("The two passphrases don't match.");
-    onMade(await apiFetch<BackupSetupResponse>("/api/backups/setup", { method: "POST", body: { passphrase: pass } }));
+    onMade(await api.backups.setup({ passphrase: pass }));
   });
   return (
     <Section title="Set up backups">
@@ -111,7 +111,7 @@ function SetUp({ awaiting, onMade }: { awaiting: boolean; onMade: (r: BackupSetu
 function RecoverySheet({ sheet, onConfirmed }: { sheet: BackupSetupResponse; onConfirmed: (s: BackupStatusDto) => void }) {
   const [last, setLast] = useState("");
   const confirm = useAction(async () => {
-    onConfirmed(await apiFetch<BackupStatusDto>("/api/backups/setup/confirm", { method: "POST", body: { lastChars: last } }));
+    onConfirmed(await api.backups.confirmSetup({ lastChars: last }));
   });
   return (
     <Section title="Recovery sheet" actions={<Button onClick={() => window.print()}>Print</Button>}>
@@ -143,7 +143,7 @@ function RecoverySheet({ sheet, onConfirmed }: { sheet: BackupSetupResponse; onC
 function SetUpVault({ s, reload, setData }: { s: BackupStatusDto; reload: () => Promise<void>; setData: (d: BackupStatusDto) => void }) {
   const newest = s.files[0] ?? null;
   const backUp = useAction(async () => {
-    await apiFetch<BackupFileDto>("/api/backups", { method: "POST" });
+    await api.backups.run();
     await reload();
   });
   return (
@@ -229,7 +229,7 @@ function Check({ f, keyOnThisMac }: { f: BackupFileDto; keyOnThisMac: boolean })
 
 function BackupRow({ f, keyOnThisMac, reload }: { f: BackupFileDto; keyOnThisMac: boolean; reload: () => Promise<void> }) {
   const verify = useAction(async () => {
-    await apiFetch<BackupFileDto>(`/api/backups/${encodeURIComponent(f.name)}/verify`, { method: "POST" });
+    await api.backups.verify(f.name);
     await reload();
   });
   return (
@@ -253,7 +253,7 @@ function KeyOnThisMac({ mismatch, setData }: { mismatch: boolean; setData: (d: B
   const [pass, setPass] = useState("");
   const [key, setKey] = useState("");
   const send = (body: { passphrase: string } | { identity: string }) =>
-    apiFetch<BackupStatusDto>("/api/backups/key", { method: "POST", body }).then(setData);
+    api.backups.importKey(body).then(setData);
   const byPass = useAction(() => send({ passphrase: pass }));
   const byKey = useAction(() => send({ identity: key }));
   return (
@@ -291,13 +291,13 @@ function KeyOnThisMac({ mismatch, setData }: { mismatch: boolean; setData: (d: B
 function SecondFolder({ s, setData }: { s: BackupStatusDto; setData: (d: BackupStatusDto) => void }) {
   const [dir, setDir] = useState(s.secondDir ?? "");
   const save = useAction((p: string | null) =>
-    apiFetch<BackupStatusDto>("/api/backups/second-folder", { method: "PUT", body: { path: p } }).then((next) => {
+    api.backups.setSecondFolder({ path: p }).then((next) => {
       setData(next);
       setDir(next.secondDir ?? "");
     }),
   );
   const choose = useAction(async () => {
-    const next = await apiFetch<BackupStatusDto>("/api/backups/second-folder/choose", { method: "POST" });
+    const next = await api.backups.chooseSecondFolder();
     setData(next);
     setDir(next.secondDir ?? "");
   });

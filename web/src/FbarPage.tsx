@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { FbarReportDto, FbarRowDto, FbarTestVerdict } from "@finshark/shared";
-import { apiFetch } from "./api.ts";
+import { api } from "./api.ts";
 import { formatDay } from "./displayDate.ts";
 import { hrefAccount, hrefFact, hrefFbar } from "./route.ts";
 import { useLoad } from "./ui.tsx";
@@ -39,7 +39,7 @@ const TEST_LABEL: Record<FbarTestVerdict, string> = {
 };
 
 export function FbarPage({ year }: { year: number | null }) {
-  const report = useLoad(() => apiFetch<FbarReportDto>(`/api/fbar${year ? `?year=${year}` : ""}`), year);
+  const report = useLoad(() => api.fbar.report(year), year);
   const [how, setHow] = useState(false);
   const r = report.data;
   const thisYear = new Date().getFullYear();

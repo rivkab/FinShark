@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import type { AccountDto, ConceptDto, InstitutionDto, PersonDto, TaxonomyDto, TermDto } from "@finshark/shared";
-import { ApiError, apiFetch, errorText, setActingPerson } from "./api.ts";
+import type { AccountDto, ConceptDto, InstitutionDto, PersonDto, TermDto } from "@finshark/shared";
+import { api, ApiError, errorText } from "./api.ts";
 import { Alert, Button, DataText, Heading, Inline, Loading, Modal, Page, Stack, Text } from "./ds/index.ts";
 import { useAction } from "./ui.tsx";
 
@@ -30,18 +30,18 @@ export function RefDataProvider({ children }: { children: ReactNode }) {
   const reload = useCallback(async () => {
     try {
       const [p, i, a, c, t] = await Promise.all([
-        apiFetch<{ people: PersonDto[] }>("/api/people"),
-        apiFetch<{ institutions: InstitutionDto[] }>("/api/institutions"),
-        apiFetch<{ accounts: AccountDto[] }>("/api/accounts"),
-        apiFetch<{ concepts: ConceptDto[] }>("/api/concepts"),
-        apiFetch<{ taxonomies: TaxonomyDto[] }>("/api/terms"),
+        api.people.list(),
+        api.institutions.list(),
+        api.accounts.list(),
+        api.reference.concepts(),
+        api.reference.taxonomies(),
       ]);
       setState({
-        people: p.people,
-        institutions: i.institutions,
-        accounts: a.accounts,
-        concepts: c.concepts,
-        docTypes: t.taxonomies.find((x) => x.id === "doc_type")?.terms ?? [],
+        people: p,
+        institutions: i,
+        accounts: a,
+        concepts: c,
+        docTypes: t.find((x) => x.id === "doc_type")?.terms ?? [],
       });
       setError(null);
     } catch (e) {
@@ -108,7 +108,7 @@ export function ActorProvider({
   const actor = useMemo(() => ({ personId, mutate }), [personId, mutate]);
 
   const choose = useAction(async (p: PersonDto) => {
-    await setActingPerson(String(p.id));
+    await api.session.setPerson(String(p.id));
     setPersonId(String(p.id));
     prompt?.resolve();
     setPrompt(null);

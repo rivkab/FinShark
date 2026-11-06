@@ -1,6 +1,6 @@
 import { useState } from "react";
-import type { ExchangeRateDto, ImportRatesResponse } from "@finshark/shared";
-import { apiFetch, errorText, uploadRatesCsv } from "./api.ts";
+import type { ImportRatesResponse } from "@finshark/shared";
+import { api, errorText } from "./api.ts";
 import { useActor } from "./context.tsx";
 import { formatDay } from "./displayDate.ts";
 import { useLoad } from "./ui.tsx";
@@ -10,7 +10,7 @@ const SOURCE_LABEL: Record<string, string> = { us_treasury_reporting: "US Treasu
 
 export function RatesPage() {
   const { mutate } = useActor();
-  const rates = useLoad(() => apiFetch<{ rates: ExchangeRateDto[] }>("/api/exchange-rates").then((r) => r.rates), 0);
+  const rates = useLoad(() => api.rates.list(), 0);
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -23,7 +23,7 @@ export function RatesPage() {
     setError(null);
     setResult(null);
     try {
-      setResult({ name: file.name, r: await mutate(() => uploadRatesCsv(file, note)) });
+      setResult({ name: file.name, r: await mutate(() => api.rates.importCsv(file, note)) });
       await rates.reload();
     } catch (e) {
       setError(errorText(e));

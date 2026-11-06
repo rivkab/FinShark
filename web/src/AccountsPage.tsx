@@ -5,7 +5,6 @@ import type {
   FactDto,
   CreateAccountRequest,
   CreateInstitutionRequest,
-  DocumentDto,
   InstitutionDto,
   Language,
   SetAccountNameRequest,
@@ -15,7 +14,7 @@ import type {
   SetAccountTypeRequest,
   SetAccountOwnersRequest,
 } from "@finshark/shared";
-import { apiFetch } from "./api.ts";
+import { api } from "./api.ts";
 import { hrefAccount, hrefDocuments, hrefFact } from "./route.ts";
 import { AddOwner } from "./AddOwner.tsx";
 import { useActor, useRefData } from "./context.tsx";
@@ -74,12 +73,12 @@ const CADENCE_OPTIONS = [
 
 export function AccountsPage() {
   const { institutions, accounts, people, concepts } = useRefData();
-  const docs = useLoad(() => apiFetch<{ documents: DocumentDto[] }>("/api/documents").then((r) => r.documents), 0);
+  const docs = useLoad(() => api.documents.list(), 0);
   const balances = useLoad(
-    () => apiFetch<{ facts: FactDto[] }>("/api/facts").then((r) => latestBalances(r.facts, concepts)),
+    () => api.facts.list().then((facts) => latestBalances(facts, concepts)),
     0,
   );
-  const proposed = useLoad(() => apiFetch<{ facts: FactDto[] }>("/api/facts?status=proposed").then((r) => r.facts), 0);
+  const proposed = useLoad(() => api.facts.list({ status: "proposed" }), 0);
   const [sort, setSort] = useState<{ key: AccountSortKey; dir: SortDir }>({ key: "name", dir: "asc" });
   const [filters, setFilters] = useState<AccountFilters>(NO_FILTERS);
   const setFilter = (key: keyof AccountFilters) => (value: string) => setFilters((f) => ({ ...f, [key]: value }));
@@ -349,22 +348,22 @@ function AccountRow({ account: a, docCount, balance }: { account: AccountDto; do
     const newAlt = altName.trim() === "" ? null : altName.trim();
     if (newName !== a.displayName || newAlt !== (a.altName ?? null)) {
       const body: SetAccountNameRequest = { displayName: newName, altName: newAlt };
-      await mutate(() => apiFetch<AccountDto>(`/api/accounts/${a.id}/name`, { method: "PUT", body }));
+      await mutate(() => api.accounts.setName(a.id, body));
     }
     if (type !== (a.accountType ?? "")) {
       const body: SetAccountTypeRequest = { accountType: type === "" ? null : (type as AccountType) };
-      await mutate(() => apiFetch<AccountDto>(`/api/accounts/${a.id}/type`, { method: "PUT", body }));
+      await mutate(() => api.accounts.setType(a.id, body));
     }
     if (cadence !== (a.statementCadence ?? "")) {
       const body: SetAccountCadenceRequest = {
         statementCadence: cadence === "" ? null : (cadence as NonNullable<SetAccountCadenceRequest["statementCadence"]>),
       };
-      await mutate(() => apiFetch<AccountDto>(`/api/accounts/${a.id}/cadence`, { method: "PUT", body }));
+      await mutate(() => api.accounts.setCadence(a.id, body));
     }
     const newNotes = notes.trim() === "" ? null : notes.trim();
     if (newNotes !== a.notes) {
       const body: SetAccountNotesRequest = { notes: newNotes };
-      await mutate(() => apiFetch<AccountDto>(`/api/accounts/${a.id}/notes`, { method: "PUT", body }));
+      await mutate(() => api.accounts.setNotes(a.id, body));
     }
     if (ownersChanged) {
       // Keep role and share of owners that stay; new ones are plain owners.
@@ -374,11 +373,11 @@ function AccountRow({ account: a, docCount, balance }: { account: AccountDto; do
           return { personId, role: existing?.role ?? "owner", share: existing?.share ?? null };
         }),
       };
-      await mutate(() => apiFetch<AccountDto>(`/api/accounts/${a.id}/owners`, { method: "PUT", body }));
+      await mutate(() => api.accounts.setOwners(a.id, body));
     }
     if (numberChanged) {
       const body: SetAccountNumberRequest = { accountNumber: newNumber };
-      await mutate(() => apiFetch<AccountDto>(`/api/accounts/${a.id}/account-number`, { method: "PUT", body }));
+      await mutate(() => api.accounts.setNumber(a.id, body));
     }
     await reload();
   });
@@ -465,7 +464,7 @@ function InstitutionRow({ inst }: { inst: InstitutionDto }) {
 
   const { run, busy, error, setError } = useAction(async () => {
     if (kind !== (inst.kind ?? "")) {
-      await mutate(() => apiFetch<InstitutionDto>(`/api/institutions/${inst.id}/kind`, { method: "PUT", body: { kind: kind === "" ? null : kind } }));
+      await mutate(() => api.institutions.setKind(inst.id, kind === "" ? null : (kind as InstitutionKind)));
       await reload();
     }
   });
@@ -524,7 +523,7 @@ function AddInstitution() {
 
   const { run, busy, error, setError } = useAction(async () => {
     const body: CreateInstitutionRequest = { name: name.trim(), country, language, kind: kind as InstitutionKind, ...(altName.trim() ? { altName: altName.trim() } : {}) };
-    await mutate(() => apiFetch<InstitutionDto>("/api/institutions", { method: "POST", body }));
+    await mutate(() => api.institutions.create(body));
     setName("");
     setAltName("");
     await reload();
@@ -619,7 +618,7 @@ export function AddAccount({
       ...(notes.trim() ? { notes: notes.trim() } : {}),
       ...(accountNumber.trim() ? { accountNumber: accountNumber.trim() } : {}),
     };
-    const created = await mutate(() => apiFetch<AccountDto>("/api/accounts", { method: "POST", body }));
+    const created = await mutate(() => api.accounts.create(body));
     setDisplayName("");
     setAltName("");
     setAccountNumber("");
