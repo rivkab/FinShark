@@ -1372,7 +1372,7 @@ years):
   agrees). Its maximum value is the fair market value of the interest on the last day of
   the year, so it needs a balance dated exactly 31 December; its other balances are not
   used. The instructions' fallback when that value is unknown (distributions received) is
-  not built; the value is shown as missing.
+  not built; the value is shown as missing. A pension plan closed before 31 December has no such value either, so its maximum is missing too (its year-end value is still zero from the closing date).
 - `us_8938/not_reportable`: excluded, with a required reason (shown on the report).
 - `us_8938/ask_preparer`: undecided on purpose.
 

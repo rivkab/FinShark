@@ -138,3 +138,10 @@ export function actorId(req: FastifyRequest): number {
   if (!Number.isInteger(n)) throw new HttpError(409, "choose_person", "Choose who is using FinShark first.");
   return n;
 }
+
+/** The `year` query of a tax report: four digits, 2000 to 2100; absent = the year just ended. */
+export function reportYear(ctx: ApiContext, raw: unknown): number {
+  if (raw === undefined) return ctx.now().getUTCFullYear() - 1;
+  if (typeof raw !== "string" || !/^\d{4}$/.test(raw) || Number(raw) < 2000 || Number(raw) > 2100) throw badRequest("year must be a four-digit year, 2000 to 2100.");
+  return Number(raw);
+}

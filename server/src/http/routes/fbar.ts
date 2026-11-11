@@ -2,7 +2,7 @@
 import type { FastifyInstance } from "fastify";
 import { formatAmount, type FbarReportDto, type MoneyDto } from "@finshark/shared";
 import { fbarReport, loadFbarInput, type FbarRow } from "../../query/index.ts";
-import { badRequest, type ApiContext, type Json } from "./common.ts";
+import { reportYear, type ApiContext, type Json } from "./common.ts";
 
 const money = (minor: bigint, currency: string): MoneyDto => ({ minor: minor.toString(), currency, formatted: formatAmount({ minor, currency }) });
 const usd = (minor: bigint): MoneyDto => money(minor, "USD");
@@ -33,12 +33,7 @@ function rowDto(r: FbarRow): FbarReportDto["rows"][number] {
 
 export function registerFbarRoutes(app: FastifyInstance, ctx: ApiContext): void {
   app.get("/api/fbar", async (req) => {
-    const raw = (req.query as Json)["year"];
-    let year = ctx.now().getUTCFullYear() - 1; // FBARs are filed for the year just ended
-    if (raw !== undefined) {
-      if (typeof raw !== "string" || !/^\d{4}$/.test(raw) || Number(raw) < 2000 || Number(raw) > 2100) throw badRequest("year must be a four-digit year, 2000 to 2100.");
-      year = Number(raw);
-    }
+    const year = reportYear(ctx, (req.query as Json)["year"]);
     const r = fbarReport(loadFbarInput(ctx.db, year));
     return {
       year: r.year,

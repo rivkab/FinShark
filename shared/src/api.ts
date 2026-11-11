@@ -51,6 +51,7 @@
 //                             optional query: note            -> 201 ImportRatesResponse
 //   GET  /api/exchange-rates                 -> { rates: ExchangeRateDto[] }
 //   GET  /api/fbar?year=YYYY                 -> FbarReportDto   (year defaults to the previous calendar year)
+//   GET  /api/form8938?year=YYYY             -> Form8938ReportDto   (year defaults to the previous calendar year)
 //   GET  /api/tax-years/:year                -> TaxYearDto   (a year with no row returns nulls)
 //   PUT  /api/tax-years/:year  SetTaxYearRequest         -> TaxYearDto
 //   PUT  /api/accounts/:id/us-8938  SetUs8938Request     -> Us8938ClassificationDto | null (classification for that year)
@@ -562,6 +563,156 @@ export interface FbarReportDto {
       dates: { date: string; usd: MoneyDto; missingAccountIds: number[] }[];
     };
   };
+}
+
+// ---------------------------------------------------------------- Form 8938 (DESIGN D21)
+
+export type Form8938Verdict = "REQUIRED" | "NOT_REQUIRED" | "DEPENDS_ON_RULE" | "UNDETERMINED" | "NO_FOREIGN_ACCOUNTS";
+/** How the form treats an account; `not_classified` = no us_8938 term for the year. */
+export type Form8938Treatment = "financial_account" | "pension_plan" | "ask_preparer" | "not_classified";
+export type Form8938ValueSource = "balances" | "year_end_balance" | "closing_date" | "missing" | "conflict";
+
+export interface Form8938ValueDto {
+  /** In the account's own currency; null when unknown. */
+  native: MoneyDto | null;
+  /** In USD at the 31 December Treasury rate; null when unknown or when there is no rate. */
+  usd: MoneyDto | null;
+  source: Form8938ValueSource;
+  date: string | null;
+  factIds: number[];
+  status: FbarStatus;
+}
+
+export interface Form8938MaximumDto extends Form8938ValueDto {
+  /** True when it is the maximum of period-end balances (an approximation of the true peak). */
+  approximation: boolean;
+  /** Dates a statement should have given a balance for, but none is recorded (over the period measured). */
+  missingDates: string[];
+  coverageKnown: boolean;
+  conflicts: { date: string; values: { amount: MoneyDto; factIds: number[] }[] }[];
+}
+
+export type Form8938ConversionDto =
+  | { kind: "none" }
+  | { kind: "rate"; rate: string; rateDate: string; rateId: number }
+  | { kind: "missing_rate"; currency: string };
+
+export interface Form8938DetailsDto {
+  identifiers: { kind: string; value: string }[];
+  institutionName: string | null;
+  openedDuringYear: boolean;
+  closedDuringYear: boolean;
+  owners: { personId: number; displayName: string }[];
+  currency: string;
+  rate: { rate: string; rateDate: string; rateId: number } | null;
+  mailingAddress: "not_in_finshark";
+  giin: "not_in_finshark";
+}
+
+export interface Form8938TaxItemPeriodDto {
+  periodStart: string;
+  periodEnd: string;
+  /** Null when verified facts disagree on this period (then `disagreeing` is set). */
+  value: MoneyDto | null;
+  conceptIds: string[];
+  factIds: number[];
+  disagreeing: { amount: MoneyDto; factIds: number[] }[] | null;
+}
+
+export interface Form8938TaxItemGroupDto {
+  genericConceptId: string;
+  currency: string;
+  periods: Form8938TaxItemPeriodDto[];
+  /** Null when periods overlap or disagree; a lower bound when there are gaps. */
+  total: MoneyDto | null;
+  complete: boolean;
+  gaps: { start: string; end: string }[];
+  overlaps: { a: { start: string; end: string }; b: { start: string; end: string } }[];
+  factIds: number[];
+}
+
+export interface Form8938TaxItemsDto {
+  groups: Form8938TaxItemGroupDto[];
+  excluded: { factId: number; genericConceptId: string; reason: "unverified" | "no_amount" | "other_currency" | "straddles_year" | "bad_period" }[];
+  /** No tax item was found for the year (Part V has a box for that). */
+  noTaxItems: boolean;
+}
+
+export interface Form8938RowDto {
+  accountId: number;
+  displayName: string;
+  country: string;
+  currency: string;
+  treatment: Form8938Treatment;
+  /** True for financial_account and pension_plan; the rest only enter the "withUnresolved" totals. */
+  counted: boolean;
+  conversion: Form8938ConversionDto;
+  maximum: Form8938MaximumDto;
+  yearEnd: Form8938ValueDto;
+  details: Form8938DetailsDto;
+  /** Only for counted accounts. */
+  taxItems: Form8938TaxItemsDto | null;
+}
+
+export type Form8938ReasonDto =
+  | { code: "unsupported_filing_status"; filingStatus: FilingStatus | null }
+  | { code: "residence_not_set" }
+  | { code: "missing_values"; accountIds: number[] }
+  | { code: "missing_rate"; accountIds: number[]; currencies: string[] }
+  | { code: "conflicting_values"; accountIds: number[] }
+  | { code: "ask_preparer_accounts"; accountIds: number[] }
+  | { code: "not_classified_accounts"; accountIds: number[] }
+  | { code: "sum_of_maxima_only" }
+  | { code: "unresolved_accounts_push_over" };
+
+/** Each figure twice: over counted accounts only, and also counting ask_preparer / not classified ones. */
+export interface Form8938PairedDto<T> {
+  counted: T;
+  withUnresolved: T;
+}
+
+export interface Form8938SingleDateDto {
+  date: string;
+  usd: MoneyDto;
+  missingAccountIds: number[];
+}
+
+export interface Form8938ScenarioDto {
+  thresholds: { yearEnd: MoneyDto; anyTime: MoneyDto };
+  yearEnd: Form8938PairedDto<FbarTestVerdict>;
+  sumOfMaxima: Form8938PairedDto<FbarTestVerdict>;
+  singleDate: Form8938PairedDto<{ verdict: FbarTestVerdict; exceededOn: string | null }>;
+  /** The verdict if this threshold row applied (the filing status is not considered here). */
+  verdict: "REQUIRED" | "NOT_REQUIRED" | "DEPENDS_ON_RULE" | "UNDETERMINED";
+}
+
+export interface Form8938ReportDto {
+  year: number;
+  filingStatus: FilingStatus | null;
+  abroad: boolean | null;
+  /** Which threshold row(s) the verdict used; "both" when residence is not set. */
+  applied: "us" | "abroad" | "both";
+  verdict: Form8938Verdict;
+  /** Why the verdict is not firm (UNDETERMINED or DEPENDS_ON_RULE). */
+  reasons: Form8938ReasonDto[];
+  /** About the values. */
+  status: FbarStatus;
+  /** About Part III tax items, kept apart from the values. */
+  taxItemsStatus: FbarStatus;
+  scenarios: { us: Form8938ScenarioDto; abroad: Form8938ScenarioDto };
+  /** Totals of the known values in USD; lower bounds unless `status` is COMPLETE. */
+  totals: {
+    yearEnd: Form8938PairedDto<MoneyDto>;
+    sumOfMaxima: Form8938PairedDto<MoneyDto>;
+    singleDate: Form8938PairedDto<Form8938SingleDateDto[]>;
+  };
+  /** Counted accounts first, then ask_preparer / not classified ones. */
+  rows: Form8938RowDto[];
+  /** Classified not_reportable: excluded from every total. */
+  notReportable: { accountId: number; displayName: string; reason: string | null }[];
+  notInScope: { accountId: number; displayName: string; reason: "opened_after_year" | "closed_before_year" }[];
+  /** Part IV (Forms 3520, 5471, 8621, 8865) is not tracked; the preparer must check it. */
+  partIV: { checkedByPreparer: true };
 }
 
 // ---------------------------------------------------------------- backups (DESIGN D20)

@@ -63,6 +63,10 @@ describe("api client", () => {
     expect(calls.at(-1)!.url).toBe("/api/fbar?year=2024");
     await api.fbar.report(null);
     expect(calls.at(-1)!.url).toBe("/api/fbar");
+    await api.form8938.report(2025);
+    expect(calls.at(-1)!.url).toBe("/api/form8938?year=2025");
+    await api.form8938.report(undefined);
+    expect(calls.at(-1)!.url).toBe("/api/form8938");
   });
 
   it("calls the Form 8938 data endpoints", async () => {

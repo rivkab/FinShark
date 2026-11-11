@@ -22,6 +22,7 @@ import type {
   FactDto,
   FactStatus,
   FbarReportDto,
+  Form8938ReportDto,
   SetTaxYearRequest,
   SetUs8938Request,
   TaxYearDto,
@@ -231,6 +232,10 @@ export const api = {
 
   fbar: {
     report: (year?: number | null) => apiFetch<FbarReportDto>(`/api/fbar${qs({ year: year ?? undefined })}`),
+  },
+
+  form8938: {
+    report: (year?: number | null) => apiFetch<Form8938ReportDto>(`/api/form8938${qs({ year: year ?? undefined })}`),
   },
 
   taxYears: {

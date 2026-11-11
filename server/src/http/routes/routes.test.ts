@@ -690,6 +690,49 @@ describe("fbar", () => {
   });
 });
 
+describe("form8938", () => {
+  it("defaults to the previous year, validates the year, and reports no foreign accounts", async () => {
+    const r = await call("GET", "/api/form8938");
+    expect(r.statusCode).toBe(200);
+    expect(r.json()).toMatchObject({ year: 2025, verdict: "NO_FOREIGN_ACCOUNTS", rows: [], applied: "both", filingStatus: null, abroad: null });
+    expect((await call("GET", "/api/form8938?year=2024")).json().year).toBe(2024);
+    for (const bad of ["abc", "99", "1999", "20250"]) expect((await call("GET", `/api/form8938?year=${bad}`)).statusCode).toBe(400);
+  });
+
+  it("an unvalued classified account is UNDETERMINED with reasons; money is strings only", async () => {
+    const personId = await choosePerson();
+    const inst = (await call("POST", "/api/institutions", { name: "Bank Example", country: "IL" })).json();
+    const acct = (await call("POST", "/api/accounts", { institutionId: inst.id, displayName: "Savings", nativeCurrency: "ILS", accountNumber: "1234", owners: [{ personId, role: "owner" }] })).json();
+    await call("PUT", "/api/tax-years/2025", { filingStatus: "married_joint", abroad8938: false });
+    expect((await call("PUT", `/api/accounts/${acct.id}/us-8938`, { year: 2025, termId: "us_8938/financial_account" })).statusCode).toBe(200);
+    const res = await call("GET", "/api/form8938?year=2025");
+    const r = res.json();
+    expect(r).toMatchObject({ verdict: "UNDETERMINED", status: "INCOMPLETE", applied: "us", filingStatus: "married_joint", abroad: false });
+    expect(r.reasons).toContainEqual({ code: "missing_values", accountIds: [acct.id] });
+    expect(r.scenarios.us.thresholds).toEqual({
+      yearEnd: { minor: "10000000", currency: "USD", formatted: "$100,000.00" },
+      anyTime: { minor: "15000000", currency: "USD", formatted: "$150,000.00" },
+    });
+    expect(r.rows[0]).toMatchObject({
+      accountId: acct.id,
+      treatment: "financial_account",
+      counted: true,
+      maximum: { native: null, usd: null, source: "missing" },
+      details: { institutionName: "Bank Example", owners: [{ personId, displayName: "Dana" }] },
+    });
+    expect(r.totals.yearEnd.counted).toEqual({ minor: "0", currency: "USD", formatted: "$0.00" });
+    // No JSON number is used for money: every amount object is {minor: string, currency, formatted}.
+    const moneyShapes: unknown[] = [];
+    JSON.parse(res.body, function (k, val) {
+      if (k === "minor") moneyShapes.push(val);
+      return val;
+    });
+    expect(moneyShapes.length).toBeGreaterThan(0);
+    expect(moneyShapes.every((m) => typeof m === "string")).toBe(true);
+    expect(res.body).not.toMatch(/\d{4,}n\b/);
+  });
+});
+
 describe("tax years and Form 8938 classification", () => {
   it("reads nulls for an unset year, upserts, and validates", async () => {
     await choosePerson();

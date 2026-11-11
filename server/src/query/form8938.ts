@@ -3,6 +3,11 @@
 // year-end value in USD at the Treasury rate for 31 December, tested against the filing
 // thresholds for married filing jointly, plus the Part V/VI details and Part III tax items. Pure:
 // every input, including the classification of each account for the year, is supplied.
+import type { DatabaseSync } from "node:sqlite";
+import type { FilingStatus, Us8938TermId } from "@finshark/shared";
+import { findRate, TREASURY_SOURCE } from "../currency/index.ts";
+import { getTaxYear, us8938TermsForYear } from "../db/tax-years.ts";
+import { listFacts } from "../facts/index.ts";
 import type { Fact, PeriodType, ValueType } from "../facts/types.ts";
 import {
   applyConversion,
@@ -19,7 +24,6 @@ import {
 } from "./foreign-accounts.ts";
 import { maxInPeriod, type MaxInPeriodAccount, type MaxInPeriodResult, type MaxInPeriodStatus } from "./max-in-period.ts";
 
-export type FilingStatus = "married_joint" | "married_separate" | "single" | "head_of_household" | "qualifying_surviving_spouse";
 
 /** Thresholds in USD cents, married filing jointly (D21). A total must *exceed* them. */
 export const FORM_8938_THRESHOLDS_USD_MINOR = {
@@ -27,10 +31,8 @@ export const FORM_8938_THRESHOLDS_USD_MINOR = {
   abroad: { yearEnd: 40_000_000n, anyTime: 60_000_000n },
 } as const;
 
-export type Form8938TermId = "us_8938/financial_account" | "us_8938/pension_plan" | "us_8938/not_reportable" | "us_8938/ask_preparer";
-
 export interface Form8938Classification {
-  termId: Form8938TermId;
+  termId: Us8938TermId;
   /** Required for not_reportable; shown on the report. */
   reason: string | null;
 }
@@ -76,7 +78,7 @@ export type Form8938Treatment = "financial_account" | "pension_plan" | "ask_prep
 export type ValueSource =
   | "balances" // the maximum of the period-end balances (financial accounts)
   | "year_end_balance" // a balance dated exactly 31 December
-  | "closing_date" // closed before 31 December: zero, from the closing date, not a statement
+  | "closing_date" // year-end value only: closed before 31 December, zero from the closing date, not a statement
   | "missing"
   | "conflict"; // two verified facts disagree on 31 December
 
@@ -92,7 +94,7 @@ export interface AccountValue {
 
 export interface MaximumValue extends AccountValue {
   status: MaxInPeriodStatus;
-  /** True when it is the maximum of period-end balances; false for a year-end value (pension, closed). */
+  /** True when it is the maximum of period-end balances; false for a pension plan's 31 December value (or its absence). */
   approximation: boolean;
   /** The maxInPeriod result it is based on (for a pension plan, over 31 December alone). */
   measure: MaxInPeriodResult;
@@ -296,7 +298,11 @@ function valueRow(
   if (ye.minor !== null && ye.usdMinor === null) ye = { ...ye, status: "INCOMPLETE" }; // no rate
 
   let maximum: MaximumValue;
-  if (treatment === "pension_plan") {
+  if (treatment === "pension_plan" && closedEarly) {
+    // The maximum is the value on the last day of the year, which a plan closed earlier does not
+    // have; the instructions' fallback is not built (D21), so it is missing, never zero.
+    maximum = { minor: null, usdMinor: null, source: "missing", date: null, factIds: [], status: "INCOMPLETE", approximation: false, measure };
+  } else if (treatment === "pension_plan") {
     // Fair market value of the interest on the last day of the year: the year-end value itself.
     maximum = { ...ye, status: ye.status, approximation: false, measure };
   } else if (measure.max === null) {
@@ -598,4 +604,65 @@ export function form8938Report(input: Form8938Input): Form8938Report {
     taxItemsStatus,
     partIV: { checkedByPreparer: true },
   };
+}
+
+// ---------------------------------------------------------------- loading from the vault
+
+/**
+ * Owners shown for an account: people with role 'owner' or 'joint' whose ownership period
+ * overlaps the tax year (valid_from <= 31 Dec and valid_to >= 1 Jan, NULL = unbounded). Other roles
+ * (custodian, beneficiary, participant) do not own the asset for the form; a plan's participant
+ * can be added to the classification question later. Ordered by person id.
+ */
+export function loadForm8938Input(db: DatabaseSync, year: number): Form8938Input {
+  const start = `${year}-01-01`;
+  const end = `${year}-12-31`;
+  const institutions = new Map((db.prepare("SELECT id, name FROM institutions").all() as { id: number; name: string }[]).map((i) => [i.id, i.name]));
+  const identifiers = db.prepare("SELECT account_id, kind, value, valid_from, valid_to FROM account_identifiers ORDER BY id").all() as Record<string, unknown>[];
+  const owners = db
+    .prepare(
+      `SELECT ao.account_id, p.id AS person_id, p.display_name FROM account_owners ao JOIN people p ON p.id = ao.person_id
+       WHERE ao.role IN ('owner', 'joint')
+         AND (ao.valid_from IS NULL OR ao.valid_from <= ?) AND (ao.valid_to IS NULL OR ao.valid_to >= ?)
+       ORDER BY p.id, ao.id`,
+    )
+    .all(end, start) as Record<string, unknown>[];
+  const accounts = (db.prepare("SELECT * FROM accounts ORDER BY id").all() as Record<string, unknown>[]).map((r): Form8938Account => {
+    const id = Number(r["id"]);
+    const seen = new Set<number>();
+    return {
+      id,
+      displayName: String(r["display_name"]),
+      country: String(r["country"]),
+      nativeCurrency: String(r["native_currency"]),
+      openedOn: (r["opened_on"] as string | null) ?? null,
+      closedOn: (r["closed_on"] as string | null) ?? null,
+      statementCadence: (r["statement_cadence"] as string | null) ?? null,
+      institutionName: institutions.get(Number(r["institution_id"])) ?? null,
+      identifiers: identifiers
+        .filter((i) => Number(i["account_id"]) === id)
+        .map((i) => ({ kind: String(i["kind"]), value: String(i["value"]), validFrom: (i["valid_from"] as string | null) ?? null, validTo: (i["valid_to"] as string | null) ?? null })),
+      owners: owners
+        .filter((o) => Number(o["account_id"]) === id)
+        .map((o) => ({ personId: Number(o["person_id"]), displayName: String(o["display_name"]) }))
+        .filter((o) => !seen.has(o.personId) && seen.add(o.personId)),
+    };
+  });
+  const concepts = (db.prepare("SELECT id, generic_concept_id, period_type, value_type FROM concepts").all() as Record<string, unknown>[]).map(
+    (r): Form8938Concept => ({
+      id: String(r["id"]),
+      genericConceptId: (r["generic_concept_id"] as string | null) ?? null,
+      periodType: r["period_type"] as PeriodType,
+      valueType: r["value_type"] as ValueType,
+    }),
+  );
+  const classifications: Record<number, Form8938Classification> = {};
+  for (const [accountId, t] of us8938TermsForYear(db, year)) classifications[accountId] = { termId: t.termId, reason: t.reason };
+  const ty = getTaxYear(db, year);
+  const facts = accounts.filter((a) => a.country !== "US").flatMap((a) => listFacts(db, { accountId: a.id }).map((v) => v.fact));
+  const rateFor = (currency: string): UsdRate | null => {
+    const r = findRate(db, TREASURY_SOURCE, "USD", currency, end);
+    return r && { id: r.id, rate: r.rate, rateDate: r.rateDate };
+  };
+  return { year, taxYear: { filingStatus: ty?.filingStatus ?? null, abroad: ty?.abroad8938 ?? null }, accounts, classifications, facts, concepts, rateFor };
 }

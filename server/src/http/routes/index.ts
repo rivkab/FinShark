@@ -5,6 +5,7 @@ import { apiErrorHandler, actorId, type ApiContext } from "./common.ts";
 import { registerBackupRoutes } from "./backups.ts";
 import { registerDocumentRoutes } from "./documents.ts";
 import { registerFbarRoutes } from "./fbar.ts";
+import { registerForm8938Routes } from "./form8938.ts";
 import { registerFactRoutes } from "./facts.ts";
 import { registerRateRoutes } from "./rates.ts";
 import { registerReferenceRoutes } from "./reference.ts";
@@ -37,6 +38,7 @@ export function registerApiRoutes(app: FastifyInstance, ctx: ApiContext): void {
   registerFactRoutes(app, ctx);
   registerRateRoutes(app, ctx);
   registerFbarRoutes(app, ctx);
+  registerForm8938Routes(app, ctx);
   registerTaxYearRoutes(app, ctx);
   registerBackupRoutes(app, ctx);
 }

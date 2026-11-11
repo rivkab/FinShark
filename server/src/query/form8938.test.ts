@@ -1,6 +1,12 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { importTreasuryRates } from "../currency/index.ts";
+import { insertAccount, insertAccountIdentifier, insertInstitution, insertPerson } from "../db/repo.ts";
+import { setTaxYear, setUs8938Term } from "../db/tax-years.ts";
+import { proposeManualFact, verifyFact } from "../facts/index.ts";
+import { sampleStatementPdf } from "../testing/pdf-fixture.ts";
+import { makeRealVault, type RealTestVault } from "../testing/test-vault.ts";
 import type { Fact } from "../facts/types.ts";
-import { form8938Report, type Form8938Account, type Form8938Classification, type Form8938Concept, type Form8938Input } from "./form8938.ts";
+import { form8938Report, loadForm8938Input, type Form8938Account, type Form8938Classification, type Form8938Concept, type Form8938Input } from "./form8938.ts";
 import { balanceFact } from "./test-helpers.ts";
 
 const USD = (n: number) => BigInt(n) * 100n; // whole dollars -> cents
@@ -258,6 +264,30 @@ describe("pension plans", () => {
   });
 });
 
+describe("pension plan closed before 31 December", () => {
+  const closed = { accounts: [acct(1, { closedOn: "2025-06-15" })], classifications: { 1: PENSION } };
+
+  it("has a missing maximum (not zero) but a zero year-end value from the closing date", () => {
+    const r = report({ ...closed, facts: [bal(1, "2025-03-31", 900_000)] });
+    expect(r.rows[0]!.maximum).toMatchObject({ minor: null, usdMinor: null, source: "missing", status: "INCOMPLETE" });
+    expect(r.rows[0]!.yearEnd).toMatchObject({ minor: 0n, usdMinor: 0n, source: "closing_date", date: "2025-06-15" });
+  });
+
+  it("the missing maximum blocks NOT_REQUIRED and is listed as a reason", () => {
+    const r = report({ ...closed, facts: [] });
+    expect(r.verdict).toBe("UNDETERMINED");
+    expect(r.status).toBe("INCOMPLETE");
+    expect(r.reasons).toContainEqual({ code: "missing_values", accountIds: [1] });
+    expect(r.scenarios.us.sumOfMaxima.counted).toBe("UNDETERMINED");
+  });
+
+  it("another account can still make it REQUIRED", () => {
+    const r = report({ accounts: [acct(1, { closedOn: "2025-06-15" }), acct(2)], classifications: { 1: PENSION, 2: FIN }, facts: [ye(2, 200_000)] });
+    expect(r.verdict).toBe("REQUIRED");
+    expect(r.status).toBe("INCOMPLETE");
+  });
+});
+
 describe("year-end value", () => {
   it("is zero, stated as from the closing date, for an account closed before 31 December", () => {
     const r = report({
@@ -431,5 +461,74 @@ describe("Part III tax items", () => {
     const r = report({ accounts: [acct(1), acct(2)], classifications: { 1: FIN, 2: ASK }, facts: [ye(1, 1), ye(2, 1), interest(2, "2025-01-01", "2025-12-31", 5n)] });
     expect(r.rows[0]!.taxItems!.noTaxItems).toBe(true);
     expect(r.rows[1]!.taxItems).toBeNull();
+  });
+});
+
+describe("loadForm8938Input (real vault)", () => {
+  let v: RealTestVault;
+  beforeEach(async () => {
+    v = await makeRealVault();
+  });
+  afterEach(async () => {
+    await v.cleanup();
+  });
+
+  it("loads accounts, owners, identifiers, classifications, tax year, facts and the rate", async () => {
+    const db = v.vault.db;
+    const actor = insertPerson(db, v.now, { displayName: "Dana" });
+    const spouse = insertPerson(db, v.now, { displayName: "Eli" });
+    const child = insertPerson(db, v.now, { displayName: "Kid" });
+    const inst = insertInstitution(db, v.now, { name: "Bank Example", country: "IL" });
+    const account = insertAccount(db, v.now, { institutionId: inst, displayName: "Savings", nativeCurrency: "ILS", statementCadence: "annual" });
+    const usAccount = insertAccount(db, v.now, { institutionId: insertInstitution(db, v.now, { name: "US Bank", country: "US" }), displayName: "Checking", nativeCurrency: "USD" });
+    insertAccountIdentifier(db, { accountId: account, kind: "account_number", value: "12-345" });
+    db.prepare("INSERT INTO account_owners (account_id, person_id, role, share, valid_from, valid_to) VALUES (?, ?, 'owner', NULL, NULL, NULL)").run(account, actor);
+    db.prepare("INSERT INTO account_owners (account_id, person_id, role, share, valid_from, valid_to) VALUES (?, ?, 'joint', NULL, NULL, NULL)").run(account, spouse);
+    db.prepare("INSERT INTO account_owners (account_id, person_id, role, share, valid_from, valid_to) VALUES (?, ?, 'beneficiary', NULL, NULL, NULL)").run(account, child);
+    // ended before the year: not shown
+    db.prepare("INSERT INTO account_owners (account_id, person_id, role, share, valid_from, valid_to) VALUES (?, ?, 'owner', NULL, NULL, '2024-06-01')").run(account, child);
+    setUs8938Term(db, account, 2025, "us_8938/financial_account", null);
+    setTaxYear(db, v.now(), 2025, { filingStatus: "married_joint", abroad8938: false });
+    const documentId = (await v.importPdf(sampleStatementPdf())).documentId;
+    const deps = { db, layout: v.vault.layout, now: v.now };
+    const view = await proposeManualFact(deps, actor, {
+      documentId,
+      pageNo: 1,
+      bbox: [395, 595, 480, 615],
+      conceptId: "balance.ending",
+      accountId: account,
+      value: "₪45,000.00",
+      currency: "ILS",
+      instantDate: "2025-12-31",
+    });
+    verifyFact(deps, actor, view.fact.id);
+    importTreasuryRates({ db, now: v.now }, "Record Date,Country - Currency Description,Exchange Rate,Effective Date\n2025-12-31,Israel-Shekel,3.191,2025-12-31");
+
+    const input = loadForm8938Input(db, 2025);
+    expect(input.taxYear).toEqual({ filingStatus: "married_joint", abroad: false });
+    const loaded = input.accounts.find((a) => a.id === account)!;
+    expect(loaded).toMatchObject({ institutionName: "Bank Example", country: "IL" });
+    expect(loaded.identifiers).toEqual([{ kind: "account_number", value: "12-345", validFrom: null, validTo: null }]);
+    expect(loaded.owners).toEqual([
+      { personId: actor, displayName: "Dana" },
+      { personId: spouse, displayName: "Eli" },
+    ]);
+    expect(input.classifications[account]).toEqual({ termId: "us_8938/financial_account", reason: null });
+    expect(input.classifications[usAccount]).toBeUndefined();
+    expect(input.facts.map((f) => f.id)).toEqual([view.fact.id]);
+    expect(input.concepts.find((c) => c.id === "balance.ending")).toMatchObject({ periodType: "instant", valueType: "money" });
+    expect(input.rateFor("ILS")).toMatchObject({ rate: "3.191", rateDate: "2025-12-31" });
+    expect(input.rateFor("EUR")).toBeNull();
+
+    const r = form8938Report(input);
+    expect(r.status).toBe("COMPLETE");
+    expect(r.rows[0]).toMatchObject({ accountId: account, treatment: "financial_account" });
+    expect(r.rows[0]!.yearEnd.usdMinor).toBe(1_410_216n);
+    expect(r.verdict).toBe("NOT_REQUIRED");
+
+    // Another year: no tax year row and no classification, nothing guessed.
+    const other = loadForm8938Input(db, 2024);
+    expect(other.taxYear).toEqual({ filingStatus: null, abroad: null });
+    expect(other.classifications[account]).toBeUndefined();
   });
 });
