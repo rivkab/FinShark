@@ -10,6 +10,7 @@ export type Route =
   | { page: "backups" }
   | { page: "rates" }
   | { page: "fbar"; year: number | null }
+  | { page: "form8938"; year: number | null }
   | { page: "demo" }
   | { page: "design" };
 
@@ -50,6 +51,10 @@ export function parseHash(hash: string): Route {
       const y = q.get("year");
       return { page: "fbar", year: y !== null && /^\d{4}$/.test(y) ? Number(y) : null };
     }
+    case "form-8938": {
+      const y = q.get("year");
+      return { page: "form8938", year: y !== null && /^\d{4}$/.test(y) ? Number(y) : null };
+    }
     case "rates":
       return { page: "rates" };
     case "demo":
@@ -69,3 +74,4 @@ export const hrefAccount = (id: number): string => `#/accounts/${id}`;
 export const hrefPay = (): string => "#/pay";
 export const hrefBackups = (): string => "#/backups";
 export const hrefFbar = (year?: number | null): string => (year ? `#/fbar?year=${year}` : "#/fbar");
+export const hrefForm8938 = (year?: number | null): string => (year ? `#/form-8938?year=${year}` : "#/form-8938");

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { hrefPay, hrefFbar, hrefAccount, hrefDocument, hrefDocuments, hrefFact, parseHash } from "./route.ts";
+import { hrefPay, hrefFbar, hrefForm8938, hrefAccount, hrefDocument, hrefDocuments, hrefFact, parseHash } from "./route.ts";
 
 describe("parseHash", () => {
   it("reads an account filter on the documents list", () => {
@@ -42,6 +42,11 @@ describe("parseHash", () => {
     expect(parseHash("#/fbar?year=abc")).toEqual({ page: "fbar", year: null });
     expect(hrefFbar(2025)).toBe("#/fbar?year=2025");
     expect(hrefFbar()).toBe("#/fbar");
+    expect(parseHash("#/form-8938")).toEqual({ page: "form8938", year: null });
+    expect(parseHash("#/form-8938?year=2025")).toEqual({ page: "form8938", year: 2025 });
+    expect(parseHash("#/form-8938?year=x")).toEqual({ page: "form8938", year: null });
+    expect(hrefForm8938(2025)).toBe("#/form-8938?year=2025");
+    expect(hrefForm8938()).toBe("#/form-8938");
     expect(parseHash("#/demo")).toEqual({ page: "demo" });
     expect(parseHash("#/design")).toEqual({ page: "design" });
   });

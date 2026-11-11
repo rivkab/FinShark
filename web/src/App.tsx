@@ -11,6 +11,7 @@ import { DocumentsPage } from "./DocumentsPage.tsx";
 import { DocumentView } from "./DocumentView.tsx";
 import { FactHistory } from "./FactPage.tsx";
 import { FbarPage } from "./FbarPage.tsx";
+import { Form8938Page } from "./Form8938Page.tsx";
 import { PayPage } from "./PayPage.tsx";
 import { RatesPage } from "./RatesPage.tsx";
 import { hrefBackups, parseHash, type Route } from "./route.ts";
@@ -42,6 +43,7 @@ const NAV = [
   { label: "Pay", href: "#/pay", pages: ["pay"] },
   { label: "Documents", href: "#/documents", pages: ["documents", "document"] },
   { label: "FBAR", href: "#/fbar", pages: ["fbar"] },
+  { label: "Form 8938", href: "#/form-8938", pages: ["form8938"] },
   { label: "Rates", href: "#/rates", pages: ["rates"] },
   { label: "Backups", href: "#/backups", pages: ["backups"] },
 ] as const;
@@ -215,6 +217,7 @@ function RoutePage({ route }: { route: Route }) {
     case "accounts": return <AccountsPage />;
     case "account": return <AccountPage id={route.id} />;
     case "fbar": return <FbarPage year={route.year} />;
+    case "form8938": return <Form8938Page year={route.year} />;
     case "pay": return <PayPage />;
     case "backups": return <BackupsPage />;
     case "rates": return <RatesPage />;
