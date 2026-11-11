@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ACCOUNT_TYPES, INSTITUTION_KINDS, type AccountType, type InstitutionKind } from "@finshark/shared";
+import { INSTITUTION_KINDS, type AccountType, type InstitutionKind } from "@finshark/shared";
 import type {
   AccountDto,
   FactDto,
@@ -7,16 +7,10 @@ import type {
   CreateInstitutionRequest,
   InstitutionDto,
   Language,
-  SetAccountNameRequest,
-  SetAccountNotesRequest,
-  SetAccountNumberRequest,
-  SetAccountCadenceRequest,
-  SetAccountTypeRequest,
-  SetAccountOwnersRequest,
 } from "@finshark/shared";
 import { api } from "./api.ts";
 import { hrefAccount, hrefDocuments, hrefFact } from "./route.ts";
-import { AddOwner } from "./AddOwner.tsx";
+import { ACCOUNT_TYPE_OPTIONS, CADENCE_OPTIONS, OwnerPicker } from "./AccountEdit.tsx";
 import { useActor, useRefData } from "./context.tsx";
 import { sortInstitutions } from "./institutionSort.ts";
 import { sortAccounts, type AccountSortKey, type SortDir } from "./accountSort.ts";
@@ -29,12 +23,10 @@ import { factDateLabel } from "./suggest.ts";
 import {
   Alert,
   Button,
-  Checkbox,
   DataText,
   DateInput,
   Empty,
   Field,
-  FieldGroup,
   FieldRow,
   Form,
   Inline,
@@ -61,15 +53,7 @@ import {
 } from "./ds/index.ts";
 import { InstitutionName, AccountName, FactAmount, FactConcept, langLabel, useAction, useLoad } from "./ui.tsx";
 
-const ACCOUNT_TYPE_OPTIONS = ACCOUNT_TYPES.map((t) => ({ value: t, label: ACCOUNT_TYPE_LABEL[t] }));
 const INSTITUTION_KIND_OPTIONS = INSTITUTION_KINDS.map((k) => ({ value: k, label: INSTITUTION_KIND_LABEL[k] }));
-const CADENCE_OPTIONS = [
-  { value: "monthly", label: "Monthly" },
-  { value: "quarterly", label: "Quarterly" },
-  { value: "semiannual", label: "Twice a year" },
-  { value: "annual", label: "Once a year" },
-  { value: "irregular", label: "Irregular" },
-];
 
 export function AccountsPage() {
   const { institutions, accounts, people, concepts } = useRefData();
@@ -258,30 +242,6 @@ export function AccountsPage() {
   );
 }
 
-/** Checkboxes for choosing owners, with "Add owner..." to add or promote one in place. */
-function OwnerPicker({ selected, onChange }: { selected: number[]; onChange: (ids: number[]) => void }) {
-  const owners = useRefData().people.filter((p) => p.ownsAccounts);
-  return (
-    <Stack gap={2}>
-      {owners.length > 0 ? (
-        <FieldGroup label="Owner(s)">
-          {owners.map((p) => (
-            <Checkbox
-              key={p.id}
-              checked={selected.includes(p.id)}
-              onChange={(checked) => onChange(checked ? [...selected, p.id] : selected.filter((x) => x !== p.id))}
-              label={<DataText>{p.displayName}</DataText>}
-            />
-          ))}
-        </FieldGroup>
-      ) : (
-        <Text tone="muted">Every account needs an owner. Add one to continue.</Text>
-      )}
-      <AddOwner onOwner={(p) => onChange(selected.includes(p.id) ? selected : [...selected, p.id])} />
-    </Stack>
-  );
-}
-
 function OwnersView({ account }: { account: AccountDto }) {
   const { people } = useRefData();
   if (account.owners.length === 0) return <Text tone="muted">none recorded</Text>;
@@ -316,85 +276,10 @@ function LatestValue({ balance }: { balance: FactDto | null | undefined }) {
 }
 
 function AccountRow({ account: a, docCount, balance }: { account: AccountDto; docCount: number | null; balance: FactDto | null | undefined }) {
-  const { reload } = useRefData();
-  const { mutate } = useActor();
-  const [editing, setEditing] = useState(false);
-  const [selected, setSelected] = useState<number[]>([]);
-  const [number, setNumber] = useState("");
-  const [name, setName] = useState("");
-  const [type, setType] = useState("");
-  const [cadence, setCadence] = useState("");
-  const [notes, setNotes] = useState("");
-  const [altName, setAltName] = useState("");
-
-  const startEdit = () => {
-    setSelected(a.owners.map((o) => o.personId));
-    setNumber(a.accountNumber ?? "");
-    setName(a.displayName);
-    setType(a.accountType ?? "");
-    setCadence(a.statementCadence ?? "");
-    setNotes(a.notes ?? "");
-    setAltName(a.altName ?? "");
-    setError(null);
-    setEditing(true);
-  };
-
-  const { run, busy, error, setError } = useAction(async () => {
-    const newName = name.trim();
-    const newNumber = number.trim() === "" ? null : number.trim();
-    const ownersChanged =
-      selected.length !== a.owners.length || a.owners.some((o) => !selected.includes(o.personId));
-    const numberChanged = newNumber !== (a.accountNumber ?? null);
-    const newAlt = altName.trim() === "" ? null : altName.trim();
-    if (newName !== a.displayName || newAlt !== (a.altName ?? null)) {
-      const body: SetAccountNameRequest = { displayName: newName, altName: newAlt };
-      await mutate(() => api.accounts.setName(a.id, body));
-    }
-    if (type !== (a.accountType ?? "")) {
-      const body: SetAccountTypeRequest = { accountType: type === "" ? null : (type as AccountType) };
-      await mutate(() => api.accounts.setType(a.id, body));
-    }
-    if (cadence !== (a.statementCadence ?? "")) {
-      const body: SetAccountCadenceRequest = {
-        statementCadence: cadence === "" ? null : (cadence as NonNullable<SetAccountCadenceRequest["statementCadence"]>),
-      };
-      await mutate(() => api.accounts.setCadence(a.id, body));
-    }
-    const newNotes = notes.trim() === "" ? null : notes.trim();
-    if (newNotes !== a.notes) {
-      const body: SetAccountNotesRequest = { notes: newNotes };
-      await mutate(() => api.accounts.setNotes(a.id, body));
-    }
-    if (ownersChanged) {
-      // Keep role and share of owners that stay; new ones are plain owners.
-      const body: SetAccountOwnersRequest = {
-        owners: selected.map((personId) => {
-          const existing = a.owners.find((o) => o.personId === personId);
-          return { personId, role: existing?.role ?? "owner", share: existing?.share ?? null };
-        }),
-      };
-      await mutate(() => api.accounts.setOwners(a.id, body));
-    }
-    if (numberChanged) {
-      const body: SetAccountNumberRequest = { accountNumber: newNumber };
-      await mutate(() => api.accounts.setNumber(a.id, body));
-    }
-    await reload();
-  });
-
-  const save = async () => {
-    if (name.trim() === "") return setError("Enter the account's name.");
-    if (selected.length === 0) return setError("Choose at least one owner.");
-    if (await run()) setEditing(false);
-  };
-
-  const cancel = () => { setEditing(false); setError(null); };
-
   return (
     <>
       <Tr>
         <Td>
-          <RowAction onClick={startEdit}>Edit</RowAction>
           <Stack gap={1}>
             <Text weight="semibold"><Link href={hrefAccount(a.id)}><AccountName account={a} /></Link></Text>
             {docCount !== null && (
@@ -415,43 +300,6 @@ function AccountRow({ account: a, docCount, balance }: { account: AccountDto; do
         <Td>{a.accountNumber ? <Text tone="muted"><Value>{a.accountNumber}</Value></Text> : <Text tone="muted">none</Text>}</Td>
         <Td align="end"><LatestValue balance={balance} /></Td>
       </Tr>
-      {editing && (
-        <Tr>
-          <Td colSpan={6}>
-            <Panel title={`Edit ${a.displayName}`}>
-              <Form onSubmit={() => void save()}>
-                <FieldRow>
-                  <Field label="Name" grow><TextInput value={name} onChange={setName} /></Field>
-                  <Field label="Name in the other language (optional)" grow><TextInput value={altName} onChange={setAltName} /></Field>
-                </FieldRow>
-                <FieldRow>
-                  <Field label="Type">
-                    <Select value={type} onChange={setType} options={ACCOUNT_TYPE_OPTIONS} placeholder="Not set" />
-                  </Field>
-                  <Field
-                    label="Account number"
-                    hint={a.accountNumber ? "The old number is kept in the account's history." : undefined}
-                  >
-                    <TextInput dir="ltr" value={number} onChange={setNumber} />
-                  </Field>
-                </FieldRow>
-                <FieldRow>
-                  <Field label="Statement frequency" hint="Used to check that no statement is missing.">
-                    <Select value={cadence} onChange={setCadence} options={CADENCE_OPTIONS} placeholder="Not set" />
-                  </Field>
-                </FieldRow>
-                <OwnerPicker selected={selected} onChange={setSelected} />
-                <Field label="Notes"><TextArea value={notes} onChange={setNotes} /></Field>
-                <Alert tone="danger">{error}</Alert>
-                <Inline>
-                  <Button type="submit" variant="primary" busy={busy}>Save</Button>
-                  <Button onClick={cancel} disabled={busy}>Cancel</Button>
-                </Inline>
-              </Form>
-            </Panel>
-          </Td>
-        </Tr>
-      )}
     </>
   );
 }

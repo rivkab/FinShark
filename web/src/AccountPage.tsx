@@ -1,5 +1,6 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { api, errorText } from "./api.ts";
+import { EditAccount } from "./AccountEdit.tsx";
 import { balanceRows, compactAmount, pointDetail, pointHref } from "./accountChart.ts";
 import { balanceSeries } from "./balanceSeries.ts";
 import { useRefData } from "./context.tsx";
@@ -11,6 +12,7 @@ import { hrefFact, hrefDocuments } from "./route.ts";
 import { AccountName, FactConcept, InstitutionName, useLoad } from "./ui.tsx";
 import {
   Alert,
+  Button,
   DataText,
   Empty,
   Inline,
@@ -36,6 +38,7 @@ export function AccountPage({ id }: { id: number }) {
   const { accounts, concepts, institutions } = useRefData();
   const account = accounts.find((a) => a.id === id);
   const facts = useLoad(() => api.facts.list({ account: id }), id);
+  const [editing, setEditing] = useState(false);
 
   const series = useMemo(
     () => (account && facts.data ? balanceSeries(account, facts.data, concepts) : null),
@@ -78,25 +81,30 @@ export function AccountPage({ id }: { id: number }) {
       eyebrow={eyebrow}
       title={<AccountName account={account} />}
       actions={
-        latest === undefined ? null : latest === null ? (
-          <Text tone="muted">No balance yet</Text>
-        ) : (
-          <Stat
-            label="Latest value"
-            value={<Value size="lg">{latest.formatted}</Value>}
-            note={
-              latest.status === "verified" ? (
-                latest.instantDate ? formatDay(latest.instantDate) : undefined
-              ) : (
-                <StatusMark tone="warning" icon="clock">conflict · {latest.instantDate ? formatDayShort(latest.instantDate) : ""}</StatusMark>
-              )
-            }
-            tone={latest.status === "verified" ? "default" : "warning"}
-            href={hrefFact(latest.id)}
-          />
-        )
+        <Inline gap={4}>
+          {latest === undefined ? null : latest === null ? (
+            <Text tone="muted">No balance yet</Text>
+          ) : (
+            <Stat
+              label="Latest value"
+              value={<Value size="lg">{latest.formatted}</Value>}
+              note={
+                latest.status === "verified" ? (
+                  latest.instantDate ? formatDay(latest.instantDate) : undefined
+                ) : (
+                  <StatusMark tone="warning" icon="clock">conflict · {latest.instantDate ? formatDayShort(latest.instantDate) : ""}</StatusMark>
+                )
+              }
+              tone={latest.status === "verified" ? "default" : "warning"}
+              href={hrefFact(latest.id)}
+            />
+          )}
+          {!editing && <Button onClick={() => setEditing(true)}>Edit</Button>}
+        </Inline>
       }
     >
+      {editing && <EditAccount key={account.id} account={account} onDone={() => setEditing(false)} />}
+
       <Section title="Balance over time">
         <Stack gap={3}>
           <Alert tone="danger">{facts.error ? errorText(facts.error) : null}</Alert>
