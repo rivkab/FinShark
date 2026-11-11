@@ -22,6 +22,10 @@ import type {
   FactDto,
   FactStatus,
   FbarReportDto,
+  SetTaxYearRequest,
+  SetUs8938Request,
+  TaxYearDto,
+  Us8938ClassificationDto,
   ImportRatesResponse,
   InstitutionDto,
   InstitutionKind,
@@ -186,6 +190,7 @@ export const api = {
     list: () => apiFetch<{ accounts: AccountDto[] }>("/api/accounts").then((r) => r.accounts),
     create: (body: CreateAccountRequest) => send<AccountDto>("POST", "/api/accounts", body),
     setName: (id: number, body: SetAccountNameRequest) => send<AccountDto>("PUT", `/api/accounts/${id}/name`, body),
+    setUs8938: (id: number, body: SetUs8938Request) => send<Us8938ClassificationDto | null>("PUT", `/api/accounts/${id}/us-8938`, body),
     setType: (id: number, body: SetAccountTypeRequest) => send<AccountDto>("PUT", `/api/accounts/${id}/type`, body),
     setCadence: (id: number, body: SetAccountCadenceRequest) => send<AccountDto>("PUT", `/api/accounts/${id}/cadence`, body),
     setNotes: (id: number, body: SetAccountNotesRequest) => send<AccountDto>("PUT", `/api/accounts/${id}/notes`, body),
@@ -226,6 +231,11 @@ export const api = {
 
   fbar: {
     report: (year?: number | null) => apiFetch<FbarReportDto>(`/api/fbar${qs({ year: year ?? undefined })}`),
+  },
+
+  taxYears: {
+    get: (year: number) => apiFetch<TaxYearDto>(`/api/tax-years/${year}`),
+    set: (year: number, body: SetTaxYearRequest) => send<TaxYearDto>("PUT", `/api/tax-years/${year}`, body),
   },
 
   backups: {

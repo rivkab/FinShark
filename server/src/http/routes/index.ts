@@ -8,6 +8,7 @@ import { registerFbarRoutes } from "./fbar.ts";
 import { registerFactRoutes } from "./facts.ts";
 import { registerRateRoutes } from "./rates.ts";
 import { registerReferenceRoutes } from "./reference.ts";
+import { registerTaxYearRoutes } from "./tax-years.ts";
 
 export { DEFAULT_MAX_UPLOAD_BYTES, type ApiContext } from "./common.ts";
 
@@ -36,5 +37,6 @@ export function registerApiRoutes(app: FastifyInstance, ctx: ApiContext): void {
   registerFactRoutes(app, ctx);
   registerRateRoutes(app, ctx);
   registerFbarRoutes(app, ctx);
+  registerTaxYearRoutes(app, ctx);
   registerBackupRoutes(app, ctx);
 }

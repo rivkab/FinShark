@@ -65,6 +65,16 @@ describe("api client", () => {
     expect(calls.at(-1)!.url).toBe("/api/fbar");
   });
 
+  it("calls the Form 8938 data endpoints", async () => {
+    stub(() => json({}));
+    await api.taxYears.get(2025);
+    expect(calls.at(-1)!.url).toBe("/api/tax-years/2025");
+    await api.taxYears.set(2025, { filingStatus: "married_joint", abroad8938: false });
+    expect([calls.at(-1)!.init.method, calls.at(-1)!.url]).toEqual(["PUT", "/api/tax-years/2025"]);
+    await api.accounts.setUs8938(7, { year: 2025, termId: null, reason: null });
+    expect([calls.at(-1)!.init.method, calls.at(-1)!.url]).toEqual(["PUT", "/api/accounts/7/us-8938"]);
+  });
+
   it("throws ApiError with status, code and conflicts on a non-OK response", async () => {
     stub(() => json({ error: "conflict", message: "Resolve it first.", details: { conflicts: [{ id: 9 }] } }, 409));
     const err = await api.facts.verify(1).catch((e: unknown) => e);

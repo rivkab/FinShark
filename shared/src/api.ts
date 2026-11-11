@@ -51,7 +51,10 @@
 //                             optional query: note            -> 201 ImportRatesResponse
 //   GET  /api/exchange-rates                 -> { rates: ExchangeRateDto[] }
 //   GET  /api/fbar?year=YYYY                 -> FbarReportDto   (year defaults to the previous calendar year)
-//   GET  /api/backups                        -> BackupStatusDto
+//   GET  /api/tax-years/:year                -> TaxYearDto   (a year with no row returns nulls)
+//   PUT  /api/tax-years/:year  SetTaxYearRequest         -> TaxYearDto
+//   PUT  /api/accounts/:id/us-8938  SetUs8938Request     -> Us8938ClassificationDto | null (classification for that year)
+//   GET  /api/backups                      -> BackupStatusDto
 //   POST /api/backups                        -> 201 BackupFileDto   (back up now; waits for it)
 //   POST /api/backups/:name/verify           -> BackupFileDto
 //   POST /api/backups/setup   BackupSetupRequest         -> 201 BackupSetupResponse (the only call that returns the private key)
@@ -625,4 +628,41 @@ export type BackupImportKeyRequest = { passphrase: string } | { identity: string
 export interface BackupSecondFolderRequest {
   /** Absolute path, or null to stop copying to a second folder. */
   path: string | null;
+}
+
+// ---------------------------------------------------------------- Form 8938 data (DESIGN D21)
+
+/** Only married_joint is supported by the Form 8938 report; the rest are storable. */
+export const FILING_STATUSES = ["married_joint", "married_separate", "single", "head_of_household", "qualifying_surviving_spouse"] as const;
+export type FilingStatus = (typeof FILING_STATUSES)[number];
+
+export const US_8938_TERM_IDS = ["us_8938/financial_account", "us_8938/pension_plan", "us_8938/not_reportable", "us_8938/ask_preparer"] as const;
+export type Us8938TermId = (typeof US_8938_TERM_IDS)[number];
+
+export interface TaxYearDto {
+  year: number;
+  filingStatus: FilingStatus | null;
+  /** true = meets a presence-abroad test, false = lives in the US, null = not set. */
+  abroad8938: boolean | null;
+  /** null when the year has no row yet. */
+  updatedAt: string | null;
+}
+export interface SetTaxYearRequest {
+  filingStatus: FilingStatus | null;
+  abroad8938: boolean | null;
+}
+
+/** Sets the classification for `year` onward (earlier years keep theirs); termId null clears it. */
+export interface SetUs8938Request {
+  year: number;
+  termId: Us8938TermId | null;
+  /** Required (non-empty) for us_8938/not_reportable, otherwise null. */
+  reason: string | null;
+}
+export interface Us8938ClassificationDto {
+  year: number;
+  termId: Us8938TermId;
+  reason: string | null;
+  validFrom: string | null;
+  validTo: string | null;
 }

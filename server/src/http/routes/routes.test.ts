@@ -689,3 +689,52 @@ describe("fbar", () => {
     expect(r.rows[0]).toMatchObject({ accountId: acct.id, max: null, usd: null, coverageKnown: false });
   });
 });
+
+describe("tax years and Form 8938 classification", () => {
+  it("reads nulls for an unset year, upserts, and validates", async () => {
+    await choosePerson();
+    expect((await call("GET", "/api/tax-years/2025")).json()).toEqual({ year: 2025, filingStatus: null, abroad8938: null, updatedAt: null });
+    const put = await call("PUT", "/api/tax-years/2025", { filingStatus: "married_joint", abroad8938: false });
+    expect(put.statusCode).toBe(200);
+    expect(put.json()).toMatchObject({ year: 2025, filingStatus: "married_joint", abroad8938: false });
+    expect(put.json().updatedAt).toBe(v.now().toISOString());
+    expect((await call("GET", "/api/tax-years/2025")).json().abroad8938).toBe(false);
+    expect((await call("PUT", "/api/tax-years/2025", { filingStatus: null, abroad8938: null })).json()).toMatchObject({ filingStatus: null, abroad8938: null });
+    expect((await call("PUT", "/api/tax-years/2025", { filingStatus: "single", abroad8938: null })).statusCode).toBe(200);
+    expect((await call("PUT", "/api/tax-years/2025", { filingStatus: "nope", abroad8938: null })).statusCode).toBe(400);
+    expect((await call("PUT", "/api/tax-years/2025", { filingStatus: null, abroad8938: "yes" })).statusCode).toBe(400);
+    expect((await call("PUT", "/api/tax-years/2025", { abroad8938: null })).statusCode).toBe(400);
+    for (const bad of ["abc", "1999", "20250"]) expect((await call("GET", `/api/tax-years/${bad}`)).statusCode).toBe(400);
+  });
+
+  it("needs a chosen person to change anything", async () => {
+    const r = await call("PUT", "/api/tax-years/2025", { filingStatus: null, abroad8938: null });
+    expect(r.statusCode).toBe(409);
+  });
+
+  it("classifies an account from a year onward", async () => {
+    const personId = await choosePerson();
+    const inst = (await call("POST", "/api/institutions", { name: "Bank Example", country: "IL" })).json();
+    const acct = (await call("POST", "/api/accounts", { institutionId: inst.id, displayName: "Pension", nativeCurrency: "ILS", owners: [{ personId }] })).json();
+    const put = (body: unknown, id = acct.id) => call("PUT", `/api/accounts/${id}/us-8938`, body);
+
+    const a = await put({ year: 2024, termId: "us_8938/pension_plan", reason: null });
+    expect(a.statusCode).toBe(200);
+    expect(a.json()).toEqual({ year: 2024, termId: "us_8938/pension_plan", reason: null, validFrom: "2024-01-01", validTo: null });
+    const b = await put({ year: 2026, termId: "us_8938/not_reportable", reason: " closed in 2026 " });
+    expect(b.json()).toMatchObject({ year: 2026, termId: "us_8938/not_reportable", reason: "closed in 2026", validFrom: "2026-01-01" });
+    const c = await put({ year: 2025, termId: "us_8938/financial_account", reason: null });
+    expect(c.json()).toMatchObject({ termId: "us_8938/financial_account", validFrom: "2025-01-01", validTo: null });
+    const d = await put({ year: 2025, termId: null, reason: null });
+    expect(d.statusCode).toBe(200);
+    expect(d.json()).toBeNull();
+
+    expect((await put({ year: 2025, termId: "us_8938/not_reportable", reason: null })).statusCode).toBe(400);
+    expect((await put({ year: 2025, termId: "us_8938/not_reportable", reason: "  " })).statusCode).toBe(400);
+    expect((await put({ year: 2025, termId: "us_8938/ask_preparer", reason: "why" })).statusCode).toBe(400);
+    expect((await put({ year: 2025, termId: "asset_class/cash", reason: null })).statusCode).toBe(400);
+    expect((await put({ year: 2025, reason: null })).statusCode).toBe(400);
+    expect((await put({ year: 1800, termId: null, reason: null })).statusCode).toBe(400);
+    expect((await put({ year: 2025, termId: null, reason: null }, 9999)).statusCode).toBe(404);
+  });
+});
