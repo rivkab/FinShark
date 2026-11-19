@@ -761,6 +761,16 @@ SQL mode.
 5. ~~Holdings level~~ **Answered: account-level balances are enough.** See §14 D5.
 6. Can you share 2–3 representative (even redacted) documents — one US statement, one
    Israeli pension report, one scanned doc — for the extraction spike?
+7. **TODO: life insurance.** Decide how FinShark handles life insurance policies: which
+   concepts to record (cash value, death benefit, premiums), whether they count in any
+   report, and how foreign policies relate to Form 8938 and FBAR. Settle this here and
+   in the decisions log before building.
+8. **TODO: Windows.** Work out how FinShark could run on Windows. D1 assumes one shared
+   Mac. The macOS-only pieces known so far are the Keychain key store
+   (`server/src/backup/keychain.ts`), the folder chooser
+   (`server/src/backup/choose-folder.ts`) and the AppleScript launcher
+   (`server/src/launcher/applescript.ts`, `npm run make-app`). Also check path handling,
+   file permission modes and shell commands.
 
 ---
 
