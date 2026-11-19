@@ -1437,3 +1437,34 @@ the same pure-function shape, with the shared pieces (Treasury conversion, forei
 selection) moved out of `fbar.ts` rather than copied; migration 009 (`tax_years`, the
 `us_8938` taxonomy and terms); `GET /api/form8938?year=` (like `/api/fbar`); endpoints to set a year's
 filing status and residence and an account's `us_8938` term; and a Form 8938 page next to FBAR.
+
+### D22. Development and release are kept apart (2026-11-19)
+
+Development happens against a vault of generated data; real data is only opened by released
+code. Opening a vault migrates it, and an applied migration is never undone (§0 rules), so a
+development branch that opened the real vault once would leave it with that branch's
+unreleased migrations, possibly in a form no released FinShark ever has.
+
+**Development vaults.** `vault.json` may say `"dev": true`. Absent means a real vault; the
+field is never written as false. `<repo>/dev-vault/`, the server's default when
+`FINSHARK_VAULT` is unset, counts as a development vault even without the field (it predates
+it), and the server marks it when it creates it. `npm run seed-dev [-- --vault <path>]`
+(`server/src/devdata/`) builds one: a fake two-person household with US and Israeli
+accounts, fake PDFs from `pdf-fixture.ts` imported through the real pipeline, and numbers
+recorded with real boxes, covering verified and unverified numbers, a conflict, a closed
+account, a pension, person-level tax forms, a fake Treasury rate for 2025 and none for 2024.
+It is deterministic (fixed clock, vault id and amounts). It replaces an existing vault only
+if that is a development vault and no FinShark has it open.
+
+**The guard** (`server/src/vault/release-guard.ts`, called from `main.ts` before a vault is
+created or opened). A vault that is not a development vault is refused unless the code is
+released: a git checkout whose HEAD is contained in `main` and whose working tree is clean
+(untracked files count, since a new migration is untracked until committed), or a copy that
+is not a git checkout. If git cannot tell, it refuses. `FINSHARK_ALLOW_UNRELEASED=1`
+overrides it. The git commands are local; nothing touches a remote.
+
+**Release checkout.** The real vault is run from a second checkout, a git worktree detached
+at `main` (or a tag), and FinShark.app is built from that checkout (`make-app` records the
+repo path, and the app runs whatever code is there). Releasing is: back up, move the
+worktree to the new commit, `npm ci`, reopen the app. The steps are in CLAUDE.md. Dev and
+release use different ports (`FINSHARK_PORT`) so both can run at once.

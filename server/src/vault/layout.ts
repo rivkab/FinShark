@@ -18,6 +18,11 @@ export interface VaultInfo {
   formatVersion: number;
   vaultId: string; // random UUID, fixed at creation
   createdAt: string; // ISO-8601 UTC
+  /**
+   * A development vault holding generated data only (DESIGN D22). Absent on real vaults, which
+   * unreleased code refuses to open. Only ever present as `true`.
+   */
+  dev?: true;
 }
 
 export interface VaultLayout {

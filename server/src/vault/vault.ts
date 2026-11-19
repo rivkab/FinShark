@@ -15,6 +15,8 @@ export interface Vault {
 export interface CreateVaultOptions {
   now: Date;
   vaultId: string;
+  /** Mark it as a development vault (generated data only, DESIGN D22). */
+  dev?: boolean;
 }
 
 /** Create a new vault in an absent or empty directory. Leaves the vault closed. */
@@ -31,6 +33,7 @@ export function createVault(root: string, opts: CreateVaultOptions): VaultLayout
     formatVersion: VAULT_FORMAT_VERSION,
     vaultId: opts.vaultId,
     createdAt: opts.now.toISOString(),
+    ...(opts.dev ? { dev: true as const } : {}),
   };
   fs.writeFileSync(layout.infoFile, JSON.stringify(info, null, 2) + "\n", { flag: "wx" });
   const db = openDb(layout.dbFile);
@@ -58,7 +61,7 @@ export function readVaultInfo(layout: VaultLayout): VaultInfo {
       `Unsupported vault format version ${o.formatVersion} (this FinShark understands ${VAULT_FORMAT_VERSION}).`,
     );
   }
-  return { formatVersion: o.formatVersion, vaultId: o.vaultId, createdAt: o.createdAt };
+  return { formatVersion: o.formatVersion, vaultId: o.vaultId, createdAt: o.createdAt, ...(o.dev === true ? { dev: true as const } : {}) };
 }
 
 /** Validate, lock, open and migrate an existing vault. */

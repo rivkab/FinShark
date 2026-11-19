@@ -16,6 +16,7 @@
     "start": "npm run build -w web -- --logLevel warn && node server/src/main.ts",
     "dev:server": "node --watch server/src/main.ts",
     "dev:web": "npm run dev -w web",
+    "seed-dev": "node server/src/devdata/seed-cli.ts",
     "restore": "node server/src/backup/restore-cli.ts",
     "make-app": "node server/src/launcher/make-app.ts"
   },

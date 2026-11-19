@@ -16,12 +16,15 @@ import { choosePort, DEFAULT_PORT, isLoopbackPortFree, listenLoopback, LOOPBACK 
 import { fillMissingLanguages } from "./documents/language.ts";
 import { fillMissingPeriods } from "./documents/period.ts";
 import { vaultLayout } from "./vault/layout.ts";
-import { createVault, openVault } from "./vault/vault.ts";
+import { ALLOW_UNRELEASED_ENV, checkVaultAccess, readCodeState } from "./vault/release-guard.ts";
+import { createVault, openVault, readVaultInfo } from "./vault/vault.ts";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 /** Recorded in each backup's manifest. */
 const APP_VERSION = (JSON.parse(readFileSync(path.join(repoRoot, "package.json"), "utf8")) as { version?: string }).version ?? "unversioned";
-const vaultRoot = process.env["FINSHARK_VAULT"] ? path.resolve(process.env["FINSHARK_VAULT"]) : path.join(repoRoot, "dev-vault");
+/** Without FINSHARK_VAULT, the development vault in the repo (gitignored). */
+const defaultDevVault = path.join(repoRoot, "dev-vault");
+const vaultRoot = process.env["FINSHARK_VAULT"] ? path.resolve(process.env["FINSHARK_VAULT"]) : defaultDevVault;
 
 /** Print a plain message (no stack trace) and stop. */
 function fail(message: string): never {
@@ -38,15 +41,28 @@ if (nodeMajor !== 24) {
 // when another FinShark is running, and it releases nothing if it fails.
 let vault;
 try {
-  if (!existsSync(vaultLayout(vaultRoot).infoFile)) {
-    createVault(vaultRoot, { now: new Date(), vaultId: randomUUID() });
-    console.log(`Created a new vault.`);
+  const layout = vaultLayout(vaultRoot);
+  const exists = existsSync(layout.infoFile);
+  // Real vaults are only opened by released code (DESIGN D22). The default dev-vault/ is a
+  // development vault even if it predates the "dev" marker.
+  const isDevVault = vaultRoot === defaultDevVault || (exists && readVaultInfo(layout).dev === true);
+  const refusal = checkVaultAccess({
+    vaultRoot,
+    isDevVault,
+    exists,
+    code: isDevVault ? { kind: "released", detail: "not checked" } : readCodeState(repoRoot),
+    override: process.env[ALLOW_UNRELEASED_ENV] === "1",
+  });
+  if (refusal !== null) fail(refusal);
+  if (!exists) {
+    createVault(vaultRoot, { now: new Date(), vaultId: randomUUID(), dev: isDevVault });
+    console.log(isDevVault ? "Created a new development vault." : "Created a new vault.");
   }
   vault = openVault(vaultRoot);
 } catch (e) {
   fail(e instanceof Error ? e.message : String(e));
 }
-console.log(`Vault: ${vault.layout.root} (id ${vault.info.vaultId})`);
+console.log(`Vault: ${vault.layout.root} (id ${vault.info.vaultId})${vault.info.dev === true || vaultRoot === defaultDevVault ? " [development]" : ""}`);
 
 let chosen;
 try {

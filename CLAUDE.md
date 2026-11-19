@@ -50,6 +50,7 @@ server/src/
   vault/         vault layout, create/open, lock, integrity checks
   documents/     import pipeline, text layer, duplicates
   backup/        create / verify / restore encrypted backups
+  devdata/       generated development vault (`npm run seed-dev`)
   http/          Fastify app, localhost security, API routes
   main.ts        entry point
 web/src/         React app
@@ -60,11 +61,12 @@ spikes/          throwaway experiments, not part of the app
 ## Commands
 
 ```
-FINSHARK_VAULT=~/FinShark-vault npm start   # use the app: builds web, serves it at http://127.0.0.1:4780
+FINSHARK_VAULT=~/FinShark-vault npm start   # use the app (from the release checkout, see below): builds web, serves it at http://127.0.0.1:4780
 npm test            # vitest, all workspaces
 npm run typecheck   # tsc -b
 npm run dev:server  # development: node --watch (restarts on source changes, new login token each time)
 npm run dev:web     # development: Vite dev server, proxies /api to the server on port 4780
+npm run seed-dev    # (re)create dev-vault/ with generated data; -- --vault <path> for another
 ```
 
 The server uses port 4780 by default. If it is taken, it falls back to a random free
@@ -72,6 +74,29 @@ loopback port and says so. `FINSHARK_PORT=n` forces a port (error if unavailable
 read by `dev:web` for its proxy target).
 
 Use `nvm use` first if `node -v` isn't 24.
+
+## Development and release (DESIGN D22)
+
+Develop against generated data; run real data only from released code.
+
+- **This checkout is for development.** Leave `FINSHARK_VAULT` unset: the server uses
+  `dev-vault/`. `npm run seed-dev` resets it to a known household. Run dev on another port
+  so it doesn't collide with the release app: `FINSHARK_PORT=4781 npm run dev:server` and
+  `FINSHARK_PORT=4781 npm run dev:web`.
+- **The real vault lives outside the repo** (e.g. `~/FinShark-vault`) and is opened by a
+  release checkout, a worktree detached at `main`:
+  ```
+  git worktree add --detach ~/FinShark-release main
+  cd ~/FinShark-release && nvm use && npm ci
+  FINSHARK_VAULT=~/FinShark-vault npm run make-app     # FinShark.app runs this checkout
+  ```
+- **To release:** merge to `main` (optionally `git tag vN`), back up the real vault from the
+  app, then `git -C ~/FinShark-release checkout --detach main && (cd ~/FinShark-release && npm ci)`
+  and reopen FinShark.app. Rolling back means checking out the older commit *and* restoring
+  the backup, since the newer migrations have already run.
+- **The guard:** the server refuses to create or open a vault without `"dev": true` in
+  `vault.json` unless HEAD is on `main` and the working tree is clean. Never point dev code at
+  the real vault; `FINSHARK_ALLOW_UNRELEASED=1` exists for emergencies only.
 
 ## Terminology
 
